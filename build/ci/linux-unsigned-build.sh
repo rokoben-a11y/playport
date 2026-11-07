@@ -66,9 +66,27 @@ swift_root=$PLAYPORT_BUILD/inputs/swift
 if [ ! -x "$swift_root/usr/bin/swift" ]; then
     tar=$PLAYPORT_BUILD/cache/swift-6.4.1-RELEASE-ubuntu24.04.tar.gz
     curl -fL --retry 3 -o "$tar" "$SWIFT_URL"
-    curl -fsSL -o "$tar.sig" "$SWIFT_URL.sig"
-    curl -fsSL https://www.swift.org/keys/all-keys.asc | gpg --batch --import
-    gpg --batch --verify "$tar.sig" "$tar"
+    curl -fsSL --compressed -o "$tar.sig" "$SWIFT_URL.sig"
+    # www.swift.org/keys/all-keys.asc is the official keyring (Swift 6.x Release
+    # Signing Key 52BB7E3DE28A71BE22EC05FFEF80A866B47A981F). The server gzip-encodes
+    # it; piping the compressed bytes to gpg is "no valid OpenPGP data found"
+    # (run 42406791715). --compressed decodes that. HTML or an empty body is refused.
+    key=$PLAYPORT_BUILD/cache/swift-all-keys.asc
+    curl -fsSL --compressed -o "$key" "https://www.swift.org/keys/all-keys.asc"
+    python3 - "$key" << 'PY'
+import pathlib, sys
+b = pathlib.Path(sys.argv[1]).read_bytes().lstrip()
+if not b or b.startswith((b"<", b"<!DOCTYPE", b"\x1f\x8b")) or not b.startswith(b"-----BEGIN PGP PUBLIC KEY BLOCK-----"):
+    sys.exit("Swift signing key is empty, HTML, or still compressed")
+PY
+    gpg --batch --import "$key"
+    fpr=52BB7E3DE28A71BE22EC05FFEF80A866B47A981F
+    gpg --batch --with-colons --fingerprint | grep -q "$fpr" || {
+        echo "official Swift 6.x release key $fpr is not in the imported keyring" >&2
+        exit 1
+    }
+    gpg --batch --status-fd 1 --verify "$tar.sig" "$tar" | tee "$PLAYPORT_BUILD/ci/swift-sig.txt"
+    grep -q '^\[GNUPG:\] VALIDSIG ' "$PLAYPORT_BUILD/ci/swift-sig.txt"
     mkdir -p "$swift_root"
     tar -C "$PLAYPORT_BUILD/cache" -xzf "$tar"
     src=$(find "$PLAYPORT_BUILD/cache" -maxdepth 1 -type d -name 'swift-6.4.1-RELEASE-*' -print -quit)

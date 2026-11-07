@@ -7,6 +7,7 @@ not gain a workflow that uploads the SDK.
 """
 
 import pathlib
+import plistlib
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -42,6 +43,11 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertIn("bb7bb7654b33d5aa8712acb837c963b2e0c56352560c76105270a3268c665c21", self.linux)
         self.assertIn(self.linux_sha_from_building(), self.linux)
         self.assertIn("./pp build --variant release --unsigned", self.linux)
+        self.assertIn("--compressed", self.linux)
+        self.assertIn("52BB7E3DE28A71BE22EC05FFEF80A866B47A981F", self.linux)
+        self.assertIn("-----BEGIN PGP PUBLIC KEY BLOCK-----", self.linux)
+        self.assertIn("VALIDSIG", self.linux)
+        self.assertNotIn("all-keys.asc | gpg", self.linux)
         self.assertIn("iPhoneOS26.5.sdk", self.linux)
         self.assertIn("MacOSX26.5.sdk", self.linux)
         self.assertNotIn("xtool sdk build", self.linux)
@@ -53,6 +59,19 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertIn("--enable-cfguard", self.crt)
         self.assertIn("libclang_rt.builtins-aarch64.a", self.crt)
         self.assertIn("aarch64-w64-mingw32", self.crt)
+
+    def testTheAppIsUniversalSoALargeDisplayIsNotAPhoneCanvas(self):
+        info = plistlib.loads((REPO / "app/Info.plist").read_bytes())
+        self.assertEqual(info["UIDeviceFamily"], [1, 2])
+        self.assertNotIn("UIRequiresFullScreen", info)
+        self.assertIsInstance(info["UILaunchScreen"], dict)
+        self.assertEqual(info["UISupportedInterfaceOrientations"], [
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"])
+        self.assertEqual(info["UISupportedInterfaceOrientations~ipad"], [
+            "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"])
+        jit = plistlib.loads((REPO / "app/PlayportJIT-Info.plist").read_bytes())
+        self.assertEqual(jit.get("NSExtension", {}).get("NSExtensionPointIdentifier"), "com.apple.ar.viewer")
 
     def testNoWorkflowInThePublicTreeUploadsTheSdk(self):
         workflows = list((REPO / ".github").glob("workflows/*")) if (REPO / ".github").is_dir() else []
