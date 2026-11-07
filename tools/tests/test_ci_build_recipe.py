@@ -30,11 +30,10 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertNotIn("sdk install", commands)
         self.assertNotIn("tar -C /Applications", commands)
         self.assertNotIn("spctl --master-disable", commands)
-        self.assertIn("com.apple.quarantine", commands)
-        self.assertIn("xattr -dr com.apple.quarantine", commands)
-        self.assertLess(commands.index("shasum -a 256 -c"), commands.index("xattr -dr com.apple.quarantine"))
-        self.assertLess(commands.index("xattr -dr com.apple.quarantine"), commands.index("sdk build"))
-        self.assertLess(commands.index("probe done"), commands.index('"$xtool" sdk build'))
+        self.assertNotIn("xattr -dr com.apple.quarantine", commands)
+        self.assertIn("Contents/Resources/bin/xtool", commands)
+        self.assertNotIn('Contents/MacOS/xtool" --version', commands)
+        self.assertLess(commands.index("probe done"), commands.index('"$cli" sdk build'))
         self.assertIn("39123efc283528b119fa3567dc1123059d6690aab76c80e6003470d17c333ca2", self.mac)
 
     def testTheLinuxStepInstallsThatBundleAndBuildsUnsigned(self):

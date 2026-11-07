@@ -57,26 +57,16 @@ zip=$work/xtool.app.zip
 curl -fL --retry 3 -o "$zip" "https://github.com/xtool-org/xtool/releases/download/${XTOOL_TAG}/xtool.app.zip"
 echo "$XTOOL_ZIP_SHA256  $zip" | shasum -a 256 -c -
 ditto -x -k "$zip" "$work/app"
-xtool=
-while IFS= read -r -d '' f; do xtool=$f; break; done < <(find "$work/app" -type f -path '*/Contents/MacOS/xtool' -print0)
-[ -n "$xtool" ] && [ -x "$xtool" ] || { echo "xtool.app.zip has no Contents/MacOS/xtool" >&2; exit 1; }
-app=$(cd "$(dirname "$xtool")/../.." && pwd)
-echo "xtool binary $xtool"
-echo "app bundle $app"
+# Contents/MacOS/xtool is the GUI (sh.xtool.XToolMac). XToolMac.swift starts
+# XToolMacUI unless XTL_CLI=1. The app's own CLI is Contents/Resources/bin/xtool,
+# which exports that variable and then execs the GUI binary. Probe 42405564066
+# ran the GUI binary: --version never returned, and spctl already accepted it.
+cli=
+while IFS= read -r -d '' f; do cli=$f; break; done < <(find "$work/app" -type f -path '*/Contents/Resources/bin/xtool' -print0)
+[ -n "$cli" ] && [ -x "$cli" ] || { echo "xtool.app.zip has no Contents/Resources/bin/xtool" >&2; find "$work/app" -type f -print >&2; exit 1; }
+echo "xtool cli $cli"
+grep -n 'XTL_CLI' "$cli"
 
-# ditto keeps the browser quarantine bit on every extracted file. The first
-# exec of a quarantined Mac app waits on Gatekeeper, and a headless runner
-# has no one to answer that prompt: run 42371222491 stayed on this exec for
-# the whole 120 minute job and never printed --version. The zip's sha256 was
-# already checked. Clearing the attribute on that extracted app is the
-# documented per-file quarantine bit (xattr -d), not a Gatekeeper switch.
-if xattr -p com.apple.quarantine "$xtool" >/dev/null 2>&1; then
-    echo "clearing com.apple.quarantine on the hash-checked app"
-    xattr -dr com.apple.quarantine "$app"
-fi
-
-# A version that does not return is a failed probe, not a two-hour job.
-# stdin is /dev/null so a prompt cannot sit on the Actions pipe.
 run_bounded() {
     local secs=$1
     shift
@@ -101,12 +91,10 @@ run_bounded() {
 
 version_failed() {
     echo "xtool --version failed" >&2
-    xattr -l "$xtool" >&2 || true
-    codesign -dv --verbose=4 "$xtool" >&2 || true
-    run_bounded 15 spctl --assess --verbose=4 --type execute "$xtool" >&2 || true
+    codesign -dv --verbose=4 "$cli" >&2 || true
     exit 1
 }
-run_bounded 30 "$xtool" --version || version_failed
+run_bounded 30 "$cli" --version || version_failed
 echo "xtool --version ok"
 if [ "$mode" = probe ]; then
     echo "probe done; sdk build not started"
@@ -114,7 +102,7 @@ if [ "$mode" = probe ]; then
 fi
 
 rm -rf "$OUT/darwin.xtoolsdk"
-"$xtool" sdk build "$XCODE" "$OUT" --arch "$ARCH"
+"$cli" sdk build "$XCODE" "$OUT" --arch "$ARCH"
 sdk=$OUT/darwin.xtoolsdk
 test -d "$sdk/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
 test -d "$sdk/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
