@@ -22,6 +22,14 @@
 
 set -euo pipefail
 
+# --probe stops after a bounded `xtool --version`. The private 5-minute job
+# runs that before anyone starts `sdk build`.
+mode=export
+if [ "${1:-}" = "--probe" ]; then
+    mode=probe
+    shift
+fi
+
 XCODE=${XCODE:-/Applications/Xcode_26.6.app}
 OUT=${1:?output directory}
 ARCH=${ARCH:-x86_64}
@@ -52,7 +60,58 @@ ditto -x -k "$zip" "$work/app"
 xtool=
 while IFS= read -r -d '' f; do xtool=$f; break; done < <(find "$work/app" -type f -path '*/Contents/MacOS/xtool' -print0)
 [ -n "$xtool" ] && [ -x "$xtool" ] || { echo "xtool.app.zip has no Contents/MacOS/xtool" >&2; exit 1; }
-"$xtool" --version
+app=$(cd "$(dirname "$xtool")/../.." && pwd)
+echo "xtool binary $xtool"
+echo "app bundle $app"
+
+# ditto keeps the browser quarantine bit on every extracted file. The first
+# exec of a quarantined Mac app waits on Gatekeeper, and a headless runner
+# has no one to answer that prompt: run 42371222491 stayed on this exec for
+# the whole 120 minute job and never printed --version. The zip's sha256 was
+# already checked. Clearing the attribute on that extracted app is the
+# documented per-file quarantine bit (xattr -d), not a Gatekeeper switch.
+if xattr -p com.apple.quarantine "$xtool" >/dev/null 2>&1; then
+    echo "clearing com.apple.quarantine on the hash-checked app"
+    xattr -dr com.apple.quarantine "$app"
+fi
+
+# A version that does not return is a failed probe, not a two-hour job.
+# stdin is /dev/null so a prompt cannot sit on the Actions pipe.
+run_bounded() {
+    local secs=$1
+    shift
+    echo "run (${secs}s): $*"
+    "$@" </dev/null &
+    local pid=$!
+    local i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$i" -ge "$secs" ]; then
+            echo "no exit after ${secs}s, stopping pid $pid" >&2
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+            kill -9 "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 124
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
+    wait "$pid"
+}
+
+version_failed() {
+    echo "xtool --version failed" >&2
+    xattr -l "$xtool" >&2 || true
+    codesign -dv --verbose=4 "$xtool" >&2 || true
+    run_bounded 15 spctl --assess --verbose=4 --type execute "$xtool" >&2 || true
+    exit 1
+}
+run_bounded 30 "$xtool" --version || version_failed
+echo "xtool --version ok"
+if [ "$mode" = probe ]; then
+    echo "probe done; sdk build not started"
+    exit 0
+fi
 
 rm -rf "$OUT/darwin.xtoolsdk"
 "$xtool" sdk build "$XCODE" "$OUT" --arch "$ARCH"
