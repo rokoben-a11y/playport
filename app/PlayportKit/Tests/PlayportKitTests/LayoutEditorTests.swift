@@ -403,4 +403,31 @@ final class LayoutEditorTests: XCTestCase {
         e.start(from: .pointClick)
         XCTAssertEqual(e.saved(into: game), GameControls(layout: .pointClick, opacity: 0.5))
     }
+
+    /// Editing on a large window stores the phone layout's points, so the copy
+    /// a game saves is the same control the compact window draws, and what was
+    /// dragged is where the large window shows it.
+    func testALargeWindowEditsInPhonePoints() throws {
+        var e = editor([space], width: 1400, height: 900)
+        let before = try XCTUnwrap(e.frame(of: "b"))
+        XCTAssertGreaterThan(before.width, 48)
+        XCTAssertEqual(e.layout.control("b"), space)
+        e.drag("b", dx: 80, dy: 40)
+        let after = try XCTUnwrap(e.frame(of: "b"))
+        // Snap may pull to the 8 pt grid. A missed un-scale would move it by the
+        // window's scale (about 1.7) instead of by the drag.
+        XCTAssertEqual(after.x - before.x, 80, accuracy: 12)
+        XCTAssertEqual(after.y - before.y, 40, accuracy: 12)
+        XCTAssertEqual(after.width, before.width, accuracy: 1e-6)
+        e.endGesture()
+        let stored = try XCTUnwrap(e.layout.control("b"))
+        XCTAssertEqual(stored.actions, space.actions)
+        XCTAssertEqual(stored.label, space.label)
+        XCTAssertEqual(stored.width, 48, accuracy: 1)
+        let phone = stored.frame(width: 874, height: 402, insets: ControlInsets(left: 62, bottom: 21, right: 62))
+        XCTAssertEqual(phone.width, 48, accuracy: 1e-6)
+        let area = ControlInsets(left: 62, bottom: 21, right: 62).area(width: 874, height: 402)
+        XCTAssertGreaterThanOrEqual(phone.x, area.x - 1e-6)
+        XCTAssertLessThanOrEqual(phone.x + phone.width, area.x + area.width + 1e-6)
+    }
 }

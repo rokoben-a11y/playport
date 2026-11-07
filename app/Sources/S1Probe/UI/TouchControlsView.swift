@@ -202,8 +202,10 @@ final class OnScreenControls: ObservableObject {
         guard s != size || i != insets else { return }
         size = s
         insets = i
+        let area = i.area(width: Double(s.width), height: Double(s.height))
+        let scale = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
         Self.log("placed in \(Int(s.width))x\(Int(s.height)), safe area insets top=\(Int(i.top)) left=\(Int(i.left)) "
-                 + "bottom=\(Int(i.bottom)) right=\(Int(i.right))")
+                 + "bottom=\(Int(i.bottom)) right=\(Int(i.right)), control scale \(scale)")
         place()
     }
 
@@ -253,8 +255,18 @@ final class OnScreenControls: ObservableObject {
             keyboardLayout = nil
             controls.setTargets(layout?.targets(width: Double(size.width), height: Double(size.height), insets: insets) ?? [])
         }
+        // setTargets replaces the pointer's view with the whole window. Put the
+        // aspect-fitted picture back before the next touch, including after a resize.
+        syncPicture()
         view?.rebuild()
         publish()
+    }
+
+    /// The game's picture now (a resize, or the swap chain changing size), so a
+    /// pointer finger maps through it as GameSurfaceView maps a game touch.
+    func syncPicture() {
+        guard let picture = view?.picture, picture.width > 0, picture.height > 0 else { return }
+        controls.setPicture(TouchRect(cg: picture))
     }
 
     /// The touch state to the guest (with the look area's and pointer's events since the last
@@ -301,6 +313,7 @@ final class OnScreenControls: ObservableObject {
     }
 
     func moved(_ touch: Int, at p: CGPoint) {
+        syncPicture()
         controls.moved(touch, at: TouchPoint(x: Double(p.x), y: Double(p.y)), time: CACurrentMediaTime())
         publish()
     }
@@ -351,6 +364,9 @@ final class TouchControlsView: UIView {
         let i = gameSafeInsets
         OnScreenControls.shared.layout(in: bounds.size, insets: ControlInsets(top: Double(i.top), left: Double(i.left),
                                                                               bottom: Double(i.bottom), right: Double(i.right)))
+        // layout returns immediately when the size is unchanged, which is also
+        // when only the swap chain's drawable size changed.
+        OnScreenControls.shared.syncPicture()
         toast.place(in: bounds.inset(by: i))
         hint.place(in: bounds.inset(by: i))
     }
@@ -870,9 +886,12 @@ final class ControlView: UIView {
         case .dpad:
             let side = min(w, h) - 2, o = 1.0
             let s = side * 30 / 92, mid = o + (side - s) / 2, far = o + side - s
+            // The preset's d-pad is 126 pt, so an arm is 124 × 30/92. A larger
+            // window's d-pad keeps that glyph; a smaller one keeps 10 pt.
+            let glyphSize = max(10, 10 * s / (CGFloat(124 * 30) / 92))
             for (x, y, glyph) in [(mid, o, "▲"), (mid, far, "▼"), (o, mid, "◀"), (far, mid, "▶")] {
                 let g = GlassView(frame: CGRect(x: x, y: y, width: s, height: s), radius: 8, text: glyph,
-                                  font: .systemFont(ofSize: 10, weight: .semibold))
+                                  font: .systemFont(ofSize: glyphSize, weight: .semibold))
                 addSubview(g)
                 parts.append(g)
             }
@@ -881,9 +900,13 @@ final class ControlView: UIView {
             g.layer.borderColor = Glass.edge.withAlphaComponent(0.34).cgColor
             addSubview(g)
             base = g
-            let n = UIView(frame: CGRect(x: w / 2 - 25, y: h / 2 - 25, width: 50, height: 50))
+            // The preset stick is 104 pt with a 50 pt nub. At that size and
+            // below, the nub stays 50; a stick grown for a larger window grows it too.
+            let unit = max(CGFloat(1), min(w, h) / 104)
+            let nubSide = 50 * unit
+            let n = UIView(frame: CGRect(x: w / 2 - nubSide / 2, y: h / 2 - nubSide / 2, width: nubSide, height: nubSide))
             n.backgroundColor = Glass.nub
-            n.layer.cornerRadius = 25
+            n.layer.cornerRadius = nubSide / 2
             n.layer.shadowColor = UIColor.black.cgColor
             n.layer.shadowOpacity = 0.35
             n.layer.shadowRadius = 8
@@ -892,17 +915,18 @@ final class ControlView: UIView {
             nub = n
             // A key stick's letters: up at the top, down at the bottom, left and right at the sides,
             // over the nub so the one it leans to stays readable.
+            let letterInset = 13 * unit
             for (i, letter) in (control.keyLetters ?? []).enumerated() {
                 let l = UILabel()
                 l.text = letter
-                l.font = .systemFont(ofSize: 10, weight: .bold)
+                l.font = .systemFont(ofSize: 10 * unit, weight: .bold)
                 l.textColor = Glass.keyLetter
                 l.textAlignment = .center
                 l.adjustsFontSizeToFitWidth = true
                 l.minimumScaleFactor = 0.6
-                let c = [CGPoint(x: w / 2, y: 13), CGPoint(x: w / 2, y: h - 13), CGPoint(x: 13, y: h / 2),
-                         CGPoint(x: w - 13, y: h / 2)][i]
-                l.frame = CGRect(x: c.x - 13, y: c.y - 8, width: 26, height: 16)
+                let c = [CGPoint(x: w / 2, y: letterInset), CGPoint(x: w / 2, y: h - letterInset),
+                         CGPoint(x: letterInset, y: h / 2), CGPoint(x: w - letterInset, y: h / 2)][i]
+                l.frame = CGRect(x: c.x - 13 * unit, y: c.y - 8 * unit, width: 26 * unit, height: 16 * unit)
                 addSubview(l)
                 letters.append(l)
             }

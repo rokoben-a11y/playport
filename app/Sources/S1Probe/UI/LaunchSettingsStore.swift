@@ -171,7 +171,7 @@ enum LaunchSettingsText {
         + "Changes apply from the game's next launch."
 
     private static func size(_ spec: String, _ aspect: ScreenAspect = .phone) -> (Int, Int)? {
-        let px = UIScreen.main.nativeBounds.size
-        return Display.guestSize(panelLong: Int(px.width), panelShort: Int(px.height), spec: aspect.spec(level: spec))
+        let px = TitleScreen.panelPixels()
+        return Display.guestSize(panelLong: px.width, panelShort: px.height, spec: aspect.spec(level: spec))
     }
 }

@@ -277,6 +277,38 @@ final class ControlLayoutTests: XCTestCase {
         XCTAssertEqual(ControlLayout.keyboardMouse().control("move")?.keyLetters, ["W", "S", "A", "D"])
         XCTAssertNil(ControlLayout.gamepad().control("leftStick")?.keyLetters)
     }
+
+    /// A window larger than every phone the presets were placed for grows the
+    /// same controls. They stay inside the safe area, clear of each other's
+    /// zones, and larger than the phone sizes. The actions are the preset's.
+    func testALargerWindowGrowsTheSameGamepad() {
+        let width = 1400.0, height = 900.0
+        let area = TouchRect(x: 0, y: 0, width: width, height: height)
+        let s = Display.controlScale(safeWidth: width, safeHeight: height)
+        XCTAssertGreaterThan(s, 1)
+        let phone = ControlLayout.gamepad(dpad: .on, rightStick: .below)
+        let targets = phone.targets(width: width, height: height)
+        func frame(_ id: String) -> TouchRect { targets.first { $0.id == id }!.frame }
+        func inside(_ r: TouchRect) -> Bool {
+            r.x >= -1e-6 && r.y >= -1e-6 && r.x + r.width <= width + 1e-6 && r.y + r.height <= height + 1e-6
+        }
+        for t in targets {
+            XCTAssertTrue(inside(t.frame), "\(t.id) \(t.frame)")
+            if case .stick(_, let zone?) = t.kind { XCTAssertTrue(inside(zone), "\(t.id) zone") }
+        }
+        XCTAssertEqual(frame("a").width, 42 * s, accuracy: 1e-6)
+        XCTAssertEqual(frame("dpad").width, 126 * s, accuracy: 1e-6)
+        XCTAssertGreaterThan(Self.gap(frame("dpad"), frame("lt")), 12)
+        // The phone window is the unscaled layout, including its actions.
+        let small = phone.targets(width: 874, height: 402, insets: ControlInsets(left: 62, bottom: 21, right: 62))
+        XCTAssertEqual(small.first { $0.id == "a" }!.frame.width, 42)
+        XCTAssertEqual(targets.map(\.id), small.map(\.id))
+        XCTAssertEqual(phone.control("a")?.actions, [.pad(.a)])
+        XCTAssertEqual(phone.control("leftStick")?.actions, [.pad(.leftStick)])
+        // The look area is not in the gamepad preset. The keyboard one fills the large safe area.
+        let look = ControlLayout.keyboardMouse().targets(width: width, height: height).first { $0.id == "look" }!
+        XCTAssertEqual(look.frame, area)
+    }
 }
 
 final class ControlsSettingsTests: XCTestCase {
