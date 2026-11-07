@@ -962,6 +962,12 @@ final class GameSurfaceView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        // A fold, or the window moving to another screen, changes the scale
+        // without leaving the window. The swap chain measures bounds × this.
+        if let window {
+            let scale = window.screen.nativeScale
+            if contentScaleFactor != scale { contentScaleFactor = scale }
+        }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         windows.frame = bounds
@@ -1027,8 +1033,13 @@ final class GameSurfaceView: UIView {
             HostIO.shared.windowTouch(x: dx, y: dy, phase: phase)
             return
         }
-        let r = picture
-        HostIO.shared.touch(at: CGPoint(x: p.x - r.minX, y: p.y - r.minY), in: r.size, phase: phase)
+        // The picture as it is now: a resize or a new swap-chain size maps the
+        // finger through the fitted rect, not the view size from the touch's start.
+        let d = (layer as? CAMetalLayer)?.drawableSize ?? .zero
+        let m = Display.picturePoint(viewX: Double(p.x), viewY: Double(p.y),
+                                     contentWidth: Double(d.width), contentHeight: Double(d.height),
+                                     viewWidth: Double(bounds.width), viewHeight: Double(bounds.height))
+        HostIO.shared.touch(at: CGPoint(x: m.x, y: m.y), in: CGSize(width: m.width, height: m.height), phase: phase)
     }
 
     /// Where the game's picture is in the view: the swap chain aspect-fitted, black around it

@@ -181,6 +181,19 @@ final class TouchKeyboardTests: XCTestCase {
         XCTAssertEqual(TouchKeyboard.hint(["kb-alt": .locked, "kb-ctrl": .latched]),
                        "Ctrl stays down until the next key, Alt until you tap it again")
     }
+
+    /// A safe area larger than the phone layout grows the panel; the keys still
+    /// span it and still press the same keys. The phone area is unchanged.
+    func testALargerWindowGrowsTheKeyboard() {
+        let phone = TouchKeyboard.layout(in: area)
+        let big = TouchKeyboard.layout(in: TouchRect(x: 0, y: 0, width: 1400, height: 900))
+        XCTAssertGreaterThan(big.panel.height, phone.panel.height)
+        XCTAssertEqual(big.panel.height, TouchKeyboard.panelHeight * Display.controlScale(safeWidth: 1400, safeHeight: 900), accuracy: 1e-6)
+        XCTAssertEqual(big.panel.maxY, 900, accuracy: 1e-6)
+        XCTAssertEqual(big.keys.map(\.key.id), phone.keys.map(\.key.id))
+        XCTAssertEqual(big.close.frame.width, 84 * Display.controlScale(safeWidth: 1400, safeHeight: 900), accuracy: 1e-6)
+        XCTAssertLessThan(big.close.frame.y + big.close.frame.height, big.panel.y + 0.001)
+    }
 }
 
 /// The keyboard's keys through InputMixer, as HostIO sends them on to Lifecycle and winios_post_key.

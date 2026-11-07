@@ -32,9 +32,9 @@ enum TitleScreen {
     /// `frameLimit` the player's limit, 0 for none.
     @MainActor
     static func configure(title: String? = nil, frameLimit: Int = 0) {
-        let px = UIScreen.main.nativeBounds.size
+        let px = Self.panelPixels()
         let screen: String
-        if let (w, h) = Display.guestSize(panelLong: Int(px.width), panelShort: Int(px.height), spec: title) {
+        if let (w, h) = Display.guestSize(panelLong: px.width, panelShort: px.height, spec: title) {
             setenv("MADEIRA_SCREEN_W", String(w), 1)
             setenv("MADEIRA_SCREEN_H", String(h), 1)
             screen = "\(w)x\(h)" + (title.map { " (the title's screen \($0))" } ?? "")
@@ -50,10 +50,30 @@ enum TitleScreen {
             linked = true
             startDisplayLink()
         }
-        summary = "screen \(screen) (panel \(Int(px.width))x\(Int(px.height)) px), landscape, swap chain aspect-fitted, "
+        summary = "screen \(screen) (panel \(px.width)x\(px.height) px), landscape, swap chain aspect-fitted, "
             + "presents free-running, display link asks for up to \(hz) Hz"
             + (frameLimit > 0 ? ", frames limited to \(frameLimit) FPS" : ", no frame rate limit")
             + ", guest monitor \(ProcessInfo.processInfo.environment["MADEIRA_SCREEN_HZ"] ?? "60") Hz"
+    }
+
+    /// The pixels the guest mode is chosen from: the key window's, when that
+    /// window is a different panel from `UIScreen.main` (a foldable's inside
+    /// screen while the main screen is still the outside one). The screen's
+    /// native pixels otherwise, which is every current iPhone.
+    @MainActor
+    static func panelPixels() -> (width: Int, height: Int) {
+        let screen = UIScreen.main.nativeBounds.size
+        var windowW = 0, windowH = 0
+        if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows).first(where: \.isKeyWindow),
+           window.bounds.width > 1, window.bounds.height > 1 {
+            let s = window.screen.nativeScale
+            windowW = Int((window.bounds.width * s).rounded())
+            windowH = Int((window.bounds.height * s).rounded())
+        }
+        let px = Display.panelPixels(windowWidth: windowW, windowHeight: windowH,
+                                     screenWidth: Int(screen.width), screenHeight: Int(screen.height))
+        return (px.0, px.1)
     }
 
     /// ProMotion keeps a CAMetalLayer at 60 Hz unless the app asks for more:
