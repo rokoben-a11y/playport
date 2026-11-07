@@ -26,9 +26,27 @@
 	<string>Playport</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- iPhone and iPad. Without iPad, a larger display (a foldable's inside
+	     screen) runs the app in the phone compatibility canvas, black bars
+	     around a phone-sized window. The delegate still keeps play landscape. -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
 	<!-- The app delegate narrows these per launch: landscape for a title, portrait otherwise. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<!-- The iPad-class window may be any orientation; play still requests landscape. -->
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
