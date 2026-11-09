@@ -13,6 +13,14 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../lib.sh"
 ROOT=${1:-$PLAYPORT_BUILD/inputs/xtool-src}
+# Headers and libs from build/toolchain/libimobiledevice-prefix.sh. The
+# pipeline runs this script with the caller's environment; sourcing the
+# prefix again covers a build that did not export it.
+limd_env=${LIMD_PREFIX:-$PLAYPORT_BUILD/inputs/limd}/env.sh
+if [ -f "$limd_env" ]; then
+    # shellcheck disable=SC1090
+    . "$limd_env"
+fi
 TAG=$(pin xtool)
 test -d "$ROOT/.git" || git clone -q "$(pin_url xtool)" "$ROOT"
 git -C "$ROOT" -c advice.detachedHead=false checkout -q "$TAG"
