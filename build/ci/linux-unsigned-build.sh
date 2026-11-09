@@ -51,7 +51,10 @@ if ! command -v clang-22 >/dev/null 2>&1; then
     sudo bash "$PLAYPORT_BUILD/cache/llvm.sh" 22
 fi
 llvm_bin=$(dirname "$(readlink -f "$(command -v clang-22)")")
-for tool in clang clang++ ld64.lld llvm-ar llvm-nm llvm-objdump llvm-objcopy llvm-lipo; do
+# The names unix.sh's shims and the darwin configure invoke. ld64.lld is the
+# macOS linker; Swift's copy of it refuses that platform.
+for tool in clang clang++ ld64.lld ld.lld llvm-ar llvm-ranlib llvm-nm llvm-strip \
+            llvm-objdump llvm-objcopy llvm-lipo llvm-libtool-darwin; do
     if [ ! -x "$llvm_bin/$tool" ]; then
         echo "LLVM 22 bin $llvm_bin has no $tool" >&2
         exit 1
@@ -97,7 +100,17 @@ PY
     rm -rf "$swift_root"
     mv "$src" "$swift_root"
 fi
-export PATH="$swift_root/usr/bin:$PATH"
+# Swift's usr/bin holds clang 21. Its ld64.lld cannot link macOS, and
+# unix.sh's darwin configure runs whichever `clang` is first on PATH
+# (run 42683290828: "C compiler cannot create executables"). LLVM 22 stays
+# first; swift is still on PATH for xtool.
+export PATH="/usr/local/bin:$PATH:$swift_root/usr/bin"
+hash -r
+case $(clang --version | head -1) in
+    *"clang version 22"*) ;;
+    *) echo "clang on PATH is not LLVM 22: $(clang --version | head -1)" >&2; exit 1 ;;
+esac
+command -v swift >/dev/null
 swift --version
 
 # llvm-mingw 20260922 UCRT, then the arm64ec CRT rebuild.
