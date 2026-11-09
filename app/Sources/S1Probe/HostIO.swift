@@ -963,22 +963,7 @@ final class GameSurfaceView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // A fold, or the window moving to another screen, changes the scale
-        // without leaving the window. The swap chain measures bounds × this.
-        if let window {
-            let scale = window.screen.nativeScale
-            if contentScaleFactor != scale { contentScaleFactor = scale }
-            // The scene's bounds, not a fixed phone size. A fold changes them
-            // and layout runs again.
-            let sceneBounds = window.windowScene?.coordinateSpace.bounds ?? bounds
-            if let metal = layer as? CAMetalLayer {
-                let px = Display.surfacePixels(sceneWidth: sceneBounds.width, sceneHeight: sceneBounds.height, scale: scale)
-                let pixels = CGSize(width: px.0, height: px.1)
-                if metal.drawableSize != pixels { metal.drawableSize = pixels }
-            }
-        }
-        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
-        layer.contentsGravity = fill ? .resize : .resizeAspect
+        syncViewport()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         windows.frame = bounds
@@ -998,7 +983,7 @@ final class GameSurfaceView: UIView {
         // the screen's pixel scale. Vulkan WSI measures bounds * contentsScale;
         // leaving it at 1 makes a native-pixel swapchain permanently suboptimal
         // (912x420 points versus 2736x1260 pixels on a 3x screen).
-        contentScaleFactor = window.screen.nativeScale
+        syncViewport()
         // Landscape before the runtime starts, so the swap chain is made at the final size.
         window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         window.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
@@ -1033,7 +1018,7 @@ final class GameSurfaceView: UIView {
     }
 
     /// A finger at p: on a guest GDI window while one is shown, else at the same
-    /// point of the game's aspect-fitted picture.
+    /// point of the scene.
     private func route(_ p: CGPoint, phase: UITouch.Phase) {
         if GuestWindows.holdingAfterExit {
             if phase == .ended { GuestWindows.endExitHold() }
@@ -1044,28 +1029,44 @@ final class GameSurfaceView: UIView {
             HostIO.shared.windowTouch(x: dx, y: dy, phase: phase)
             return
         }
-        // The picture as it is now: a resize or a new swap-chain size maps the
-        // finger through the fitted rect, not the view size from the touch's start.
-        let d = (layer as? CAMetalLayer)?.drawableSize ?? .zero
-        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
-        let r = Display.viewport(fill: fill, contentWidth: Double(d.width), contentHeight: Double(d.height),
-                                 width: Double(bounds.width), height: Double(bounds.height))
-        let m = Display.picturePoint(viewX: Double(p.x), viewY: Double(p.y),
-                                     contentWidth: r.2, contentHeight: r.3,
-                                     viewWidth: Double(bounds.width), viewHeight: Double(bounds.height))
-        HostIO.shared.touch(at: CGPoint(x: m.x, y: m.y), in: CGSize(width: m.width, height: m.height), phase: phase)
+        // The picture is the scene, so a finger maps across the whole view.
+        let r = Display.viewport(width: Double(bounds.width), height: Double(bounds.height))
+        HostIO.shared.touch(at: p, in: CGSize(width: r.2, height: r.3), phase: phase)
     }
 
-    /// Where the game's picture is in the view. Fill (the default, and any
-    /// install with no stored choice) is the whole view. Fit keeps the swap
-    /// chain's shape, black around it. A game touch maps through it, and so
-    /// does the on-screen controls' pointer surface.
+    /// Where the game's picture is: the view, which is the window scene.
+    /// A game touch maps through it, and so does the on-screen controls'
+    /// pointer surface.
     var picture: CGRect {
-        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
-        let d = (layer as? CAMetalLayer)?.drawableSize ?? .zero
-        let r = Display.viewport(fill: fill, contentWidth: Double(d.width), contentHeight: Double(d.height),
-                                 width: Double(bounds.width), height: Double(bounds.height))
+        let r = Display.viewport(width: Double(bounds.width), height: Double(bounds.height))
         return CGRect(x: r.0, y: r.1, width: r.2, height: r.3)
+    }
+
+    /// The metal viewport is the window scene in pixels, and the layer is
+    /// stretched to that view. A fold or resize lays this out again.
+    private func syncViewport() {
+        layer.contentsGravity = .resize
+        guard let window else { return }
+        let scale = window.screen.nativeScale
+        if contentScaleFactor != scale { contentScaleFactor = scale }
+        let scene = Self.sceneBounds(window: window, fallback: bounds)
+        guard let metal = layer as? CAMetalLayer else { return }
+        let px = Display.surfacePixels(sceneWidth: scene.width, sceneHeight: scene.height, scale: scale)
+        let pixels = CGSize(width: px.0, height: px.1)
+        if pixels.width > 1, pixels.height > 1, metal.drawableSize != pixels {
+            metal.drawableSize = pixels
+        }
+    }
+
+    /// The scene's current bounds. iOS 26 reports them on the effective
+    /// geometry, which changes when the window is resized or the phone folds.
+    private static func sceneBounds(window: UIWindow, fallback: CGRect) -> CGRect {
+        if #available(iOS 26.0, *), let scene = window.windowScene {
+            let b = scene.effectiveGeometry.coordinateSpace.bounds
+            if b.width > 1, b.height > 1 { return b }
+        }
+        if let b = window.windowScene?.coordinateSpace.bounds, b.width > 1, b.height > 1 { return b }
+        return fallback
     }
 
     #if !PLAYPORT_RELEASE

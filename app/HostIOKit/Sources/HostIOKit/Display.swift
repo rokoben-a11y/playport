@@ -43,22 +43,11 @@ public enum Display {
         }
     }
 
-    /// Whether the game picture covers the window. No stored choice is fill,
-    /// so an install that has never used the Fill control still covers the
-    /// screen. `fit` is the stored choice that keeps the picture's shape and
-    /// the bars.
-    public static let fillKey = "playport.displayFill"
-
-    public static func fillsWindow(_ stored: String?) -> Bool {
-        stored != "fit"
-    }
-
-    /// The picture's rectangle in a view. Fill is the whole view, whatever the
-    /// swap chain's aspect. Fit is aspect-fit, centred, with bars.
-    public static func viewport(fill: Bool, contentWidth cw: Double, contentHeight ch: Double,
-                                width: Double, height: Double) -> (Double, Double, Double, Double) {
-        if fill { return (0, 0, width, height) }
-        return aspectFit(contentWidth: cw, contentHeight: ch, width: width, height: height)
+    /// The picture's rectangle in a view: the whole view. The swap chain's
+    /// aspect does not inset it, so nothing has to be pressed before the
+    /// scene is covered.
+    public static func viewport(width: Double, height: Double) -> (Double, Double, Double, Double) {
+        (0, 0, width, height)
     }
 
     /// The metal viewport in pixels: the window scene's bounds times the

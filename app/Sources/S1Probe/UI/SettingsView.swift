@@ -30,7 +30,6 @@
 // - Developer, dev builds only (Dev/DeveloperSettings.swift, decision 0009).
 
 import Combine
-import HostIOKit
 import PlayportKit
 import SteamClientKit
 import SwiftUI
@@ -286,7 +285,6 @@ struct SettingsSwitchRow: View {
 
 private struct GraphicsSettings: View {
     @ObservedObject private var launchSettings = LaunchSettingsStore.shared
-    @AppStorage(Display.fillKey) private var displayFill = "fill"
     @AppStorage(PerformanceOverlay.key) private var performanceOverlay = false
     // On unless turned off (decision 0153; GameSocialClubEnd).
     @AppStorage(GameSocialClubEnd.key) private var endGameSocialClub = true
@@ -301,11 +299,6 @@ private struct GraphicsSettings: View {
         // Left is lower, right higher: 540p … Native; 30 fps … Off.
         let shape = launchSettings.global.aspect.flatMap(ScreenAspect.init(rawValue:)) ?? .phone
         let aspects = SettingSteps(values: ScreenAspect.allCases.map(\.rawValue), defaultValue: ScreenAspect.phone.rawValue)
-        let fill = SettingSteps(values: ["fill", "fit"], defaultValue: "fill")
-        valueRow("fill", "Fill", displayFill == "fit" ? "The game's shape, with bars" : "The whole screen",
-                 fill, name: { $0 == "fit" ? "Fit" : "Fill" },
-                 value: Binding(get: { UserDefaults.standard.string(forKey: Display.fillKey) },
-                                set: { displayFill = $0 ?? "fill" }))
         valueRow("aspect", "Aspect ratio", shape == .phone ? "The phone's own shape" : "Bars at the sides or above and below",
                  aspects, name: { LaunchSettingsText.aspect(ScreenAspect(rawValue: $0) ?? .phone) }, value: global.aspect)
         let screens = SettingSteps(values: LaunchSettingsText.screens(shape).reversed(), defaultValue: LaunchSettings.defaultScreen)
