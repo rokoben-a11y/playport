@@ -36,19 +36,22 @@
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<!-- Full screen on a large display. The Fill control can still choose fit. -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<!-- The app delegate narrows these per launch: landscape for a title, portrait otherwise. -->
+	<!-- Landscape for play, portrait while a store sign-in allows it. Upside down is not offered. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-	<!-- The iPad-class window may be any orientation; play still requests landscape. -->
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 	<!-- iOS Game Mode (Metal HUD "Game Mode"): the system engages it for an app in the games category. -->
 	<key>LSApplicationCategoryType</key>

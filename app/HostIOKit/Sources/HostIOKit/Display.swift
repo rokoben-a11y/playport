@@ -43,6 +43,32 @@ public enum Display {
         }
     }
 
+    /// Whether the game picture covers the window. No stored choice is fill,
+    /// so an install that has never used the Fill control still covers the
+    /// screen. `fit` is the stored choice that keeps the picture's shape and
+    /// the bars.
+    public static let fillKey = "playport.displayFill"
+
+    public static func fillsWindow(_ stored: String?) -> Bool {
+        stored != "fit"
+    }
+
+    /// The picture's rectangle in a view. Fill is the whole view, whatever the
+    /// swap chain's aspect. Fit is aspect-fit, centred, with bars.
+    public static func viewport(fill: Bool, contentWidth cw: Double, contentHeight ch: Double,
+                                width: Double, height: Double) -> (Double, Double, Double, Double) {
+        if fill { return (0, 0, width, height) }
+        return aspectFit(contentWidth: cw, contentHeight: ch, width: width, height: height)
+    }
+
+    /// The metal viewport in pixels: the window scene's bounds times the
+    /// screen scale. A fold or resize passes the new bounds; nothing here is
+    /// a fixed phone size.
+    public static func surfacePixels(sceneWidth: Double, sceneHeight: Double, scale: Double) -> (Double, Double) {
+        guard sceneWidth > 0, sceneHeight > 0, scale > 0 else { return (0, 0) }
+        return (sceneWidth * scale, sceneHeight * scale)
+    }
+
     /// The rectangle a picture of content size fills inside a view of
     /// width × height when fitted without stretching and centred
     /// (CAMetalLayer contentsGravity resizeAspect): x, y, width, height.

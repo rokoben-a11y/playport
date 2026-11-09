@@ -929,7 +929,7 @@ final class GameSurfaceView: UIView {
     init() {
         super.init(frame: .zero)
         backgroundColor = .black
-        layer.contentsGravity = .resizeAspect
+        layer.contentsGravity = .resize
         layer.addSublayer(windows)
         addSubview(controls)
         addSubview(magnifier)
@@ -968,7 +968,17 @@ final class GameSurfaceView: UIView {
         if let window {
             let scale = window.screen.nativeScale
             if contentScaleFactor != scale { contentScaleFactor = scale }
+            // The scene's bounds, not a fixed phone size. A fold changes them
+            // and layout runs again.
+            let sceneBounds = window.windowScene?.coordinateSpace.bounds ?? bounds
+            if let metal = layer as? CAMetalLayer {
+                let px = Display.surfacePixels(sceneWidth: sceneBounds.width, sceneHeight: sceneBounds.height, scale: scale)
+                let pixels = CGSize(width: px.0, height: px.1)
+                if metal.drawableSize != pixels { metal.drawableSize = pixels }
+            }
         }
+        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
+        layer.contentsGravity = fill ? .resize : .resizeAspect
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         windows.frame = bounds
@@ -1037,18 +1047,24 @@ final class GameSurfaceView: UIView {
         // The picture as it is now: a resize or a new swap-chain size maps the
         // finger through the fitted rect, not the view size from the touch's start.
         let d = (layer as? CAMetalLayer)?.drawableSize ?? .zero
+        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
+        let r = Display.viewport(fill: fill, contentWidth: Double(d.width), contentHeight: Double(d.height),
+                                 width: Double(bounds.width), height: Double(bounds.height))
         let m = Display.picturePoint(viewX: Double(p.x), viewY: Double(p.y),
-                                     contentWidth: Double(d.width), contentHeight: Double(d.height),
+                                     contentWidth: r.2, contentHeight: r.3,
                                      viewWidth: Double(bounds.width), viewHeight: Double(bounds.height))
         HostIO.shared.touch(at: CGPoint(x: m.x, y: m.y), in: CGSize(width: m.width, height: m.height), phase: phase)
     }
 
-    /// Where the game's picture is in the view: the swap chain aspect-fitted, black around it
-    /// (contentsGravity resizeAspect). A game touch maps through it, and so does the on-screen
-    /// controls' pointer surface (Point & click; OnScreenControls.began).
+    /// Where the game's picture is in the view. Fill (the default, and any
+    /// install with no stored choice) is the whole view. Fit keeps the swap
+    /// chain's shape, black around it. A game touch maps through it, and so
+    /// does the on-screen controls' pointer surface.
     var picture: CGRect {
-        guard let d = (layer as? CAMetalLayer)?.drawableSize else { return bounds }
-        let r = Display.aspectFit(contentWidth: d.width, contentHeight: d.height, width: bounds.width, height: bounds.height)
+        let fill = Display.fillsWindow(UserDefaults.standard.string(forKey: Display.fillKey))
+        let d = (layer as? CAMetalLayer)?.drawableSize ?? .zero
+        let r = Display.viewport(fill: fill, contentWidth: Double(d.width), contentHeight: Double(d.height),
+                                 width: Double(bounds.width), height: Double(bounds.height))
         return CGRect(x: r.0, y: r.1, width: r.2, height: r.3)
     }
 

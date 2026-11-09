@@ -63,13 +63,14 @@ class CIBuildRecipeTests(unittest.TestCase):
     def testTheAppIsUniversalSoALargeDisplayIsNotAPhoneCanvas(self):
         info = plistlib.loads((REPO / "app/Info.plist").read_bytes())
         self.assertEqual(info["UIDeviceFamily"], [1, 2])
-        self.assertNotIn("UIRequiresFullScreen", info)
+        self.assertEqual(info["UIRequiresFullScreen"], True)
         self.assertIsInstance(info["UILaunchScreen"], dict)
         self.assertEqual(info["UISupportedInterfaceOrientations"], [
-            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"])
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
+            "UIInterfaceOrientationPortrait"])
         self.assertEqual(info["UISupportedInterfaceOrientations~ipad"], [
-            "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
-            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"])
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
+            "UIInterfaceOrientationPortrait"])
         jit = plistlib.loads((REPO / "app/PlayportJIT-Info.plist").read_bytes())
         self.assertEqual(jit.get("NSExtension", {}).get("NSExtensionPointIdentifier"), "com.apple.ar.viewer")
 
