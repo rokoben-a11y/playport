@@ -41,7 +41,9 @@ sudo apt-get install -y -qq \
     build-essential ca-certificates curl gnupg xz-utils zstd git \
     cmake ninja-build meson python3 python3-pefile \
     bison flex gettext openssl xxd rsync p7zip-full pkg-config \
-    libncurses6 libxml2 libcurl4 zlib1g
+    libncurses6 libxml2 libcurl4 zlib1g \
+    autoconf automake libtool-bin libssl-dev libcurl4-openssl-dev \
+    liblzma-dev zlib1g-dev checkinstall zip unzip
 
 # LLVM 22 from apt.llvm.org. The pipeline's inputs stage wants the unversioned names.
 if ! command -v clang-22 >/dev/null 2>&1; then
@@ -137,6 +139,14 @@ if [ ! -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhon
     exit 1
 fi
 export DARWIN_SDK=$installed
+
+# xtool-core's C modules (libimobiledevice, plist, usbmuxd, glue, openssl)
+# need the headers and libraries xtool 1.20.1's Dockerfile builds. pp build
+# compiles the patched xtool after this, so the prefix is on pkg-config's
+# path and the dynamic linker before that swift build.
+bash "$ROOT/build/toolchain/libimobiledevice-prefix.sh"
+# shellcheck disable=SC1091
+. "$PLAYPORT_BUILD/inputs/limd/env.sh"
 
 # Record the two toolchains. A missing phone socket is the expected nonzero
 # status on a machine that does not install; the two paths still have to be recorded.

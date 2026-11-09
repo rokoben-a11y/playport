@@ -18,6 +18,7 @@ class CIBuildRecipeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.mac = (REPO / "build/ci/darwin-sdk-export.sh").read_text()
         cls.linux = (REPO / "build/ci/linux-unsigned-build.sh").read_text()
+        cls.limd = (REPO / "build/toolchain/libimobiledevice-prefix.sh").read_text()
         cls.crt = (REPO / "build/toolchain/llvm-mingw-arm64ec.sh").read_text()
         cls.building = (REPO / "docs/BUILDING.md").read_text()
 
@@ -51,6 +52,42 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertIn("iPhoneOS26.5.sdk", self.linux)
         self.assertIn("MacOSX26.5.sdk", self.linux)
         self.assertNotIn("xtool sdk build", self.linux)
+        self.assertIn("libimobiledevice-prefix.sh", self.linux)
+        self.assertIn("autoconf", self.linux)
+        self.assertIn("libssl-dev", self.linux)
+        self.assertIn("libcurl4-openssl-dev", self.linux)
+        self.assertIn("liblzma-dev", self.linux)
+
+    def testTheXtoolBuildUsesTheDockerfileLibimobiledeviceStack(self):
+        text = self.limd
+        order = [
+            "checkout libplist ",
+            "checkout libimobiledevice-glue ",
+            "checkout libusbmuxd ",
+            "checkout libtatsu ",
+            "checkout libimobiledevice ",
+        ]
+        at = [text.index(piece) for piece in order]
+        self.assertEqual(at, sorted(at))
+        self.assertIn("fa0f79190142bc309307967c058f89c1b36eb6b8", text)
+        self.assertIn("2.6.0", text)
+        self.assertIn("1.3.1", text)
+        self.assertIn("2.1.0", text)
+        self.assertIn("1.0.4", text)
+        self.assertEqual(text.count("--without-cython"), 2)
+        self.assertIn("PKG_CONFIG_PATH", text)
+        self.assertIn("ldconfig", text)
+        self.assertIn("autoconf", text)
+        self.assertIn("automake", text)
+        self.assertIn("libtool-bin", text)
+        self.assertIn("pkg-config", text)
+        self.assertIn("libssl-dev", text)
+        self.assertIn("libcurl4-openssl-dev", text)
+        self.assertIn("libimobiledevice/afc.h", text)
+        self.assertIn("plist/plist.h", text)
+        self.assertIn("usbmuxd.h", text)
+        self.assertIn("libtatsu/tatsu.h", text)
+        self.assertIn("openssl/rand_drbg.h", text)
 
     def testTheCrtRebuildUsesTheLockedMingwCommitAndArm64x(self):
         self.assertIn("57b595039040eaa15bece85b7cc71d952281b269", self.crt)
