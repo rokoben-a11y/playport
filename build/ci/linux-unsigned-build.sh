@@ -123,9 +123,19 @@ curl -fL --retry 3 -o "$appimage" "https://github.com/xtool-org/xtool/releases/d
 echo "$XTOOL_APPIMAGE_SHA256  $appimage" | sha256sum -c -
 chmod +x "$appimage"
 "$appimage" --appimage-extract-and-run sdk install "$SDK"
-installed=$HOME/.swiftpm/swift-sdks/darwin.artifactbundle
-test -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
-test -d "$installed/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
+# xtool 1.20.1 writes the SDK under $XDG_CONFIG_HOME/swiftpm when that variable
+# is set (GitHub ubuntu runners set it), and under ~/.swiftpm otherwise.
+if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+    installed=$XDG_CONFIG_HOME/swiftpm/swift-sdks/darwin.artifactbundle
+else
+    installed=$HOME/.swiftpm/swift-sdks/darwin.artifactbundle
+fi
+echo "installed Darwin SDK $installed"
+if [ ! -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk" ] \
+    || [ ! -d "$installed/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk" ]; then
+    echo "xtool sdk install did not leave iPhoneOS26.5.sdk and MacOSX26.5.sdk in $installed" >&2
+    exit 1
+fi
 export DARWIN_SDK=$installed
 
 # Record the two toolchains. A missing phone socket is the expected nonzero
