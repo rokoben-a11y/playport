@@ -31,6 +31,10 @@ M=$ROOT/mythic
 W=$ROOT/wine
 
 test -d "$IOSSDK" && test -d "$MACSDK" || { echo "missing xtool SDKs under $DARWIN_SDK"; exit 1; }
+# The host compiler the shims and the darwin configure use. Resolved once, so a
+# later PATH entry (Swift's clang) cannot shadow it.
+HOST_CC=$(command -v clang) || { echo "unix.sh: clang is not on PATH"; exit 1; }
+HOST_CXX=$(command -v clang++) || { echo "unix.sh: clang++ is not on PATH"; exit 1; }
 mkdir -p "$ROOT"
 
 clone_at() { # src-or-url dest rev "target..."
@@ -79,13 +83,13 @@ stage_shims() {
 #!/bin/sh
 case " \$* " in
 *" -arch arm64 "*|*" -miphoneos-version-min="*|*"iPhoneOS"*)
-    exec /usr/bin/clang --target=arm64-apple-ios17.0 -fuse-ld=lld \\
+    exec $HOST_CC --target=arm64-apple-ios17.0 -fuse-ld=lld \\
         -Wno-unused-command-line-argument \\
         '-ffile-prefix-map=$ROOT=unix' '-ffile-prefix-map=$DARWIN_SDK=darwin-sdk' "\$@" ;;
 esac
-exec /usr/bin/clang "\$@"
+exec $HOST_CC "\$@"
 EOF
-    sed 's|/usr/bin/clang |/usr/bin/clang++ |g' "$SHIMS/clang" > "$SHIMS/clang++"
+    sed "s|$HOST_CC |$HOST_CXX |g" "$SHIMS/clang" > "$SHIMS/clang++"
     ln -sf clang "$SHIMS/cc"; ln -sf clang++ "$SHIMS/c++"   # CMake's default compiler names
     cat > "$SHIMS/xcrun" <<EOF
 #!/bin/sh
@@ -100,12 +104,12 @@ while [ \$# -gt 0 ]; do
     esac
 done
 EOF
-    printf '#!/bin/sh\nexec /usr/bin/llvm-ar "$@"\n' > "$SHIMS/ar"
-    printf '#!/bin/sh\nexec /usr/bin/llvm-ranlib "$@"\n' > "$SHIMS/ranlib"
-    printf '#!/bin/sh\nexec /usr/bin/llvm-nm "$@"\n' > "$SHIMS/nm"
-    printf '#!/bin/sh\nexec /usr/bin/llvm-strip "$@"\n' > "$SHIMS/strip"
-    printf '#!/bin/sh\nexec /usr/bin/llvm-lipo "$@"\n' > "$SHIMS/lipo"
-    printf '#!/bin/sh\nexec /usr/bin/llvm-libtool-darwin "$@"\n' > "$SHIMS/libtool"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-ar)" > "$SHIMS/ar"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-ranlib)" > "$SHIMS/ranlib"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-nm)" > "$SHIMS/nm"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-strip)" > "$SHIMS/strip"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-lipo)" > "$SHIMS/lipo"
+    printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v llvm-libtool-darwin)" > "$SHIMS/libtool"
     printf '#!/bin/sh\n[ "$*" = "-n hw.ncpu" ] && exec nproc\nexec /usr/bin/sysctl "$@"\n' > "$SHIMS/sysctl"
     chmod +x "$SHIMS"/*
 }
@@ -123,9 +127,9 @@ stage_configure() {
           tools/makedep.c -o "$tools/tools/makedep" )
     rm -rf "$W/build-macos"; mkdir "$W/build-macos"
     ( cd "$W/build-macos" &&
-      CC="clang --target=aarch64-apple-darwin -isysroot $MACSDK" \
-      CXX="clang++ --target=aarch64-apple-darwin -isysroot $MACSDK" \
-      OBJC="clang -x objective-c --target=aarch64-apple-darwin -isysroot $MACSDK" \
+      CC="$HOST_CC --target=aarch64-apple-darwin -isysroot $MACSDK" \
+      CXX="$HOST_CXX --target=aarch64-apple-darwin -isysroot $MACSDK" \
+      OBJC="$HOST_CC -x objective-c --target=aarch64-apple-darwin -isysroot $MACSDK" \
       AR=llvm-ar RANLIB=llvm-ranlib STRIP=llvm-strip LDFLAGS="-fuse-ld=lld" \
       ../configure --host=aarch64-apple-darwin --without-x --without-freetype \
           --with-wine-tools="$tools" > "$ROOT/configure.log" 2>&1 )

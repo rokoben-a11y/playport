@@ -57,6 +57,10 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertIn("libssl-dev", self.linux)
         self.assertIn("libcurl4-openssl-dev", self.linux)
         self.assertIn("liblzma-dev", self.linux)
+        self.assertNotIn('PATH="$swift_root/usr/bin:$PATH"', self.linux)
+        self.assertIn('PATH="/usr/local/bin:$PATH:$swift_root/usr/bin"', self.linux)
+        self.assertIn("clang version 22", self.linux)
+        self.assertIn("ld64.lld", self.linux)
 
     def testTheXtoolBuildUsesTheDockerfileLibimobiledeviceStack(self):
         text = self.limd

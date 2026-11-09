@@ -140,6 +140,13 @@ run() {
     local log=$RUN/logs/$1.log mark; shift
     mark=$(mktemp "$RUN/logs/.mark.XXXXXX")
     if ! "$@" >> "$log" 2>&1; then
+        # wine's own config.log is deeper than the *.log scan below, and it is
+        # the file that says why configure could not create an executable.
+        cfg=$RUN/unix/wine/build-macos/config.log
+        if [ -f "$cfg" ]; then
+            cp "$cfg" "$RUN/logs/wine-build-macos-config.log"
+            say "wine config.log: logs/wine-build-macos-config.log"
+        fi
         say "FAILED: $* (log: $log)"
         find "$RUN" -maxdepth 3 -name '*.log' -newer "$mark" ! -name build.log -print0 |
             xargs -0 -r grep -H -m 20 -E '(^|[^a-z_])(error|Error|fatal error):|FAILED:|\*\*\* ' 2>/dev/null |
