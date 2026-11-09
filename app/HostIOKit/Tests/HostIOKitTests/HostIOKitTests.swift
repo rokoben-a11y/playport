@@ -305,22 +305,16 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(Display.unityScreenArgs(existing: ["-popupwindow"], width: 2736, height: 1260), [])
     }
 
-    func testFillIsTheChoiceWhenNothingIsStored() {
-        XCTAssertTrue(Display.fillsWindow(nil))
-        XCTAssertTrue(Display.fillsWindow("fill"))
-        XCTAssertFalse(Display.fillsWindow("fit"))
-        let phone = (w: 2868.0, h: 1320.0)
-        let inside = Display.viewport(fill: true, contentWidth: phone.w, contentHeight: phone.h, width: 1400, height: 900)
-        XCTAssertEqual([inside.0, inside.1, inside.2, inside.3], [0, 0, 1400, 900])
-        let fitted = Display.viewport(fill: false, contentWidth: phone.w, contentHeight: phone.h, width: 1400, height: 900)
-        XCTAssertLessThan(fitted.3, 900)
-        XCTAssertEqual(fitted.2, 1400, accuracy: 1e-6)
-        // A fold changes the scene, and the surface pixels follow it.
+    func testTheViewportIsTheSceneNotAFittedPhonePicture() {
+        let scene = Display.viewport(width: 1400, height: 900)
+        XCTAssertEqual([scene.0, scene.1, scene.2, scene.3], [0, 0, 1400, 900])
         let outside = Display.surfacePixels(sceneWidth: 956, sceneHeight: 440, scale: 3)
         let folded = Display.surfacePixels(sceneWidth: 1400, sceneHeight: 900, scale: 3)
         XCTAssertEqual(outside.0, 2868, accuracy: 1e-9)
-        XCTAssertNotEqual(folded.0, outside.0)
+        XCTAssertEqual(outside.1, 1320, accuracy: 1e-9)
+        XCTAssertEqual(folded.0, 4200, accuracy: 1e-9)
         XCTAssertEqual(folded.1, 2700, accuracy: 1e-9)
+        XCTAssertNotEqual(folded.0, outside.0)
     }
 
     func testAspectFit() {
