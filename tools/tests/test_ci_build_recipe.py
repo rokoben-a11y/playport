@@ -23,9 +23,9 @@ class CIBuildRecipeTests(unittest.TestCase):
         cls.building = (REPO / "docs/BUILDING.md").read_text()
 
     def testTheMacStepIsXtoolSdkBuildOfTheInstalledApp(self):
-        self.assertIn("/Applications/Xcode_26.6.app", self.mac)
-        self.assertIn("iPhoneOS26.5.sdk", self.mac)
-        self.assertIn("MacOSX26.5.sdk", self.mac)
+        self.assertIn("/Applications/Xcode_27.1.app", self.mac)
+        self.assertIn("iPhoneOS27.1.sdk", self.mac)
+        self.assertIn("MacOSX27.0.sdk", self.mac)
         self.assertIn("sdk build", self.mac)
         self.assertIn("--arch", self.mac)
         commands = "\n".join(line for line in self.mac.splitlines() if not line.lstrip().startswith("#"))
@@ -49,8 +49,8 @@ class CIBuildRecipeTests(unittest.TestCase):
         self.assertIn("-----BEGIN PGP PUBLIC KEY BLOCK-----", self.linux)
         self.assertIn("VALIDSIG", self.linux)
         self.assertNotIn("all-keys.asc | gpg", self.linux)
-        self.assertIn("iPhoneOS26.5.sdk", self.linux)
-        self.assertIn("MacOSX26.5.sdk", self.linux)
+        self.assertIn("iPhoneOS27.1.sdk", self.linux)
+        self.assertIn("MacOSX27.0.sdk", self.linux)
         self.assertNotIn("xtool sdk build", self.linux)
         self.assertIn("libimobiledevice-prefix.sh", self.linux)
         self.assertIn("autoconf", self.linux)

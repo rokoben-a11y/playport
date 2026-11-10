@@ -117,10 +117,10 @@ C
     # references are by name, so it stays global (the app's other Rust, idevice's
     # FFI, keeps its copy private to its own object: build/stages/idevice.sh;
     # StikJIT's is inside its own framework).
-    "$LD64" -r -d -arch arm64 -platform_version ios 17.0 26.5 -syslibroot "$IOSSDK" -u _rust_eh_personality \
+    "$LD64" -r -d -arch arm64 -platform_version ios 17.0 27.1 -syslibroot "$IOSSDK" -u _rust_eh_personality \
         -o "$obj/prelinked.o" "$obj"/*.o "$GST/libGStreamer.a"
     # -S: no debug map, whose entries would name each member by its path on this machine.
-    "$LD64" -r -S -arch arm64 -platform_version ios 17.0 26.5 -syslibroot "$IOSSDK" \
+    "$LD64" -r -S -arch arm64 -platform_version ios 17.0 27.1 -syslibroot "$IOSSDK" \
         -exported_symbol _winegstreamer_unix_call_funcs -exported_symbol _rust_eh_personality \
         -o "$obj/winegstreamer_unix.o" "$obj/prelinked.o"
     rm "$obj/prelinked.o"

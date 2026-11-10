@@ -50,9 +50,8 @@ public enum Display {
         (0, 0, width, height)
     }
 
-    /// The metal viewport in pixels: the window scene's bounds times the
-    /// screen scale. A fold or resize passes the new bounds; nothing here is
-    /// a fixed phone size.
+    /// The metal viewport in pixels: the view's bounds times
+    /// traitCollection.displayScale. A fold passes the new bounds.
     public static func surfacePixels(sceneWidth: Double, sceneHeight: Double, scale: Double) -> (Double, Double) {
         guard sceneWidth > 0, sceneHeight > 0, scale > 0 else { return (0, 0) }
         return (sceneWidth * scale, sceneHeight * scale)

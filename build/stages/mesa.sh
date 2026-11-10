@@ -21,7 +21,7 @@
 #        then Zink and EGL on the same mock (zink-host-test.c: GL context,
 #        fixed-function and GLSL 1.20 draws, a blit). No GPU runs.
 # ios    libvulkan_kosmickrisp.dylib for arm64-apple-ios26.0 (Metal 4 needs iOS 26),
-#        against the darwin SDK's iPhoneOS26.5.sdk, with those tools; and in a
+#        against the darwin SDK's iPhoneOS27.1.sdk, with those tools; and in a
 #        second build directory (ROOT/ios-gl) libEGL and libgallium_dri (Zink
 #        only, the OpenGL frontend, no GLES/GLX/GBM), renamed MesaEGL and
 #        MesaGallium with their framework install names

@@ -13,7 +13,7 @@
 #                   $PLAYPORT_BUILD)
 #   LLVM_MINGW      llvm-mingw 20260922 UCRT with the arm64ec CRT rebuilt
 #                   (docs/BUILDING.md, "llvm-mingw")
-#   DARWIN_SDK      xtool's darwin SDK bundle (iPhoneOS26.5.sdk, MacOSX26.5.sdk)
+#   DARWIN_SDK      xtool's darwin SDK bundle (iPhoneOS27.1.sdk, MacOSX27.0.sdk)
 #   LD64            Apple ld64-956.6 built for Linux (build/toolchain/ld64.sh)
 #   XTOOL           xtool 1.20.1 with build/toolchain/xtool-1.20.1-increased-memory-limit.diff
 #   RUST_ROOT       the pins.lock rust release with the aarch64-apple-ios std, installed
@@ -42,6 +42,6 @@ unset _inputs_local
 : "${LD64:=$PLAYPORT_BUILD/inputs/apple-linker/prefix/bin/arm64-apple-darwin-ld}"
 : "${XTOOL:=$PLAYPORT_BUILD/inputs/xtool-src/.build/release/xtool}"
 : "${RUST_ROOT:=$PLAYPORT_BUILD/inputs/rust}"
-IOSSDK=$DARWIN_SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk
-MACSDK=$DARWIN_SDK/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk
+IOSSDK=$DARWIN_SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.1.sdk
+MACSDK=$DARWIN_SDK/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk
 export PLAYPORT_BUILD PLAYPORT_DEVICE_DIR LLVM_MINGW DARWIN_SDK LD64 XTOOL RUST_ROOT

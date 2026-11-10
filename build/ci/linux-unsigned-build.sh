@@ -29,7 +29,12 @@ export DEBIAN_FRONTEND=noninteractive
 LLVM_MINGW_SHA256=bb7bb7654b33d5aa8712acb837c963b2e0c56352560c76105270a3268c665c21
 LLVM_MINGW_URL=https://github.com/mstorsjo/llvm-mingw/releases/download/20260922/llvm-mingw-20260922-ucrt-ubuntu-22.04-x86_64.tar.xz
 XTOOL_APPIMAGE_SHA256=040c58d5c708f613b9b74cbdb24e25e8d72c47ff86941f19463626d811159831
+# Xcode 27.1's compiler is Swift 6.4 (Apple's Xcode support page and the
+# Xcode 27.1 release notes). That is not newer than swift.org's
+# swift-6.4.1-RELEASE, so the Ubuntu toolchain stays 6.4.1.
 SWIFT_URL=https://download.swift.org/swift-6.4.1-release/ubuntu2404/swift-6.4.1-RELEASE/swift-6.4.1-RELEASE-ubuntu24.04.tar.gz
+IOS_SDK=iPhoneOS27.1.sdk
+MAC_SDK=MacOSX27.0.sdk
 
 if [ "$(uname -m)" != x86_64 ]; then
     echo "this bootstrap is the x86_64 Linux one (llvm-mingw and rustup-init); this machine is $(uname -m)" >&2
@@ -130,8 +135,8 @@ export LLVM_MINGW=$mingw
 
 # Install the prebuilt SDK with xtool 1.20.1. clang on PATH is LLVM 22, so the
 # resource directory copied into the SDK is that clang's.
-test -d "$SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
-test -d "$SDK/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
+test -d "$SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/$IOS_SDK"
+test -d "$SDK/Developer/Platforms/MacOSX.platform/Developer/SDKs/$MAC_SDK"
 test -f "$SDK/toolset.json"
 appimage=$PLAYPORT_BUILD/cache/xtool-1.20.1-x86_64.AppImage
 curl -fL --retry 3 -o "$appimage" "https://github.com/xtool-org/xtool/releases/download/1.20.1/xtool-x86_64.AppImage"
@@ -146,9 +151,9 @@ else
     installed=$HOME/.swiftpm/swift-sdks/darwin.artifactbundle
 fi
 echo "installed Darwin SDK $installed"
-if [ ! -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk" ] \
-    || [ ! -d "$installed/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk" ]; then
-    echo "xtool sdk install did not leave iPhoneOS26.5.sdk and MacOSX26.5.sdk in $installed" >&2
+if [ ! -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/$IOS_SDK" ] \
+    || [ ! -d "$installed/Developer/Platforms/MacOSX.platform/Developer/SDKs/$MAC_SDK" ]; then
+    echo "xtool sdk install did not leave $IOS_SDK and $MAC_SDK in $installed" >&2
     exit 1
 fi
 export DARWIN_SDK=$installed

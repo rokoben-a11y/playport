@@ -30,7 +30,15 @@ if [ "${1:-}" = "--probe" ]; then
     shift
 fi
 
-XCODE=${XCODE:-/Applications/Xcode_26.6.app}
+# Xcode 27.1 (27A9275) is the default on the xcode-27 runner image.
+# Its SDK names, from images/macos/xcode-27-arm64-Readme.md "Installed SDKs":
+#   iOS 27.1  iphoneos27.1  (Xcode 27.1)
+#   macOS 27.0 macosx27.0   (Xcode 27.0 and 27.1)
+# Apple's Xcode support page lists the same SDKs: iOS 27.1 and macOS 27.
+# The directories are those names in the platform SDK folder.
+XCODE=${XCODE:-/Applications/Xcode_27.1.app}
+IOS_SDK=iPhoneOS27.1.sdk
+MAC_SDK=MacOSX27.0.sdk
 OUT=${1:?output directory}
 ARCH=${ARCH:-x86_64}
 XTOOL_TAG=1.20.1
@@ -41,10 +49,12 @@ x86_64|arm64) ;;
 *) echo "ARCH must be x86_64 or arm64, not $ARCH" >&2; exit 2 ;;
 esac
 
-ios="$XCODE/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
-mac="$XCODE/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
+ios="$XCODE/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/$IOS_SDK"
+mac="$XCODE/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/$MAC_SDK"
 if [ ! -d "$XCODE/Contents/Developer" ] || [ ! -d "$ios" ] || [ ! -d "$mac" ]; then
-    echo "Xcode at $XCODE is not the 26.6 app with iPhoneOS26.5.sdk and MacOSX26.5.sdk" >&2
+    echo "Xcode at $XCODE does not contain $IOS_SDK and $MAC_SDK" >&2
+    echo "Xcode 27.1 ships iphoneos27.1 and macosx27.0 (xcode-27-arm64-Readme.md)." >&2
+    find "$XCODE/Contents/Developer/Platforms" -maxdepth 4 -type d -name '*.sdk' -print >&2 || true
     exit 1
 fi
 echo "xcode $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$XCODE/Contents/Info.plist" 2>/dev/null || true) $XCODE"
@@ -104,8 +114,8 @@ fi
 rm -rf "$OUT/darwin.xtoolsdk"
 "$cli" sdk build "$XCODE" "$OUT" --arch "$ARCH"
 sdk=$OUT/darwin.xtoolsdk
-test -d "$sdk/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
-test -d "$sdk/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
+test -d "$sdk/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/$IOS_SDK"
+test -d "$sdk/Developer/Platforms/MacOSX.platform/Developer/SDKs/$MAC_SDK"
 test -f "$sdk/info.json"
 test -f "$sdk/swift-sdk.json"
 test -f "$sdk/toolset.json"

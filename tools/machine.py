@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import inputs  # noqa: E402
 import phonelib  # noqa: E402
 
-IOS_SDK = "Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
+IOS_SDK = "Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.1.sdk"
 OPTIONS = {"--llvm-mingw": "LLVM_MINGW", "--darwin-sdk": "DARWIN_SDK", "--usbmux-socket": "PLAYPORT_USBMUX_SOCKET"}
 
 
