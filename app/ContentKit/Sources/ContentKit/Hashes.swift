@@ -212,22 +212,30 @@ public enum CRC32 {
 
     public static func update(_ crc: UInt32, _ p: UnsafeRawBufferPointer) -> UInt32 {
         var c = ~crc
-        do {
-            tables.withUnsafeBufferPointer { t in
-                var i = 0
-                while p.count - i >= 8 {
-                    let lo = c ^ UInt32(littleEndian: p.loadUnaligned(fromByteOffset: i, as: UInt32.self))
-                    let hi = UInt32(littleEndian: p.loadUnaligned(fromByteOffset: i + 4, as: UInt32.self))
-                    c = t[7 * 256 + Int(lo & 0xFF)] ^ t[6 * 256 + Int((lo >> 8) & 0xFF)]
-                        ^ t[5 * 256 + Int((lo >> 16) & 0xFF)] ^ t[4 * 256 + Int(lo >> 24)]
-                        ^ t[3 * 256 + Int(hi & 0xFF)] ^ t[2 * 256 + Int((hi >> 8) & 0xFF)]
-                        ^ t[256 + Int((hi >> 16) & 0xFF)] ^ t[Int(hi >> 24)]
-                    i += 8
-                }
-                while i < p.count {
-                    c = t[Int((c ^ UInt32(p[i])) & 0xFF)] ^ (c >> 8)
-                    i += 1
-                }
+        tables.withUnsafeBufferPointer { t in
+            var i = 0
+            while p.count - i >= 8 {
+                let lo = c ^ UInt32(littleEndian: p.loadUnaligned(fromByteOffset: i, as: UInt32.self))
+                let hi = UInt32(littleEndian: p.loadUnaligned(fromByteOffset: i + 4, as: UInt32.self))
+                // One slice at a time. One expression of all eight lookups does not
+                // type-check on Swift 6.0 or 6.2 (the compiler gives up).
+                let b0 = t[7 * 256 + Int(lo & 0xFF)]
+                let b1 = t[6 * 256 + Int((lo >> 8) & 0xFF)]
+                let b2 = t[5 * 256 + Int((lo >> 16) & 0xFF)]
+                let b3 = t[4 * 256 + Int(lo >> 24)]
+                let low = (b0 ^ b1) ^ (b2 ^ b3)
+                let b4 = t[3 * 256 + Int(hi & 0xFF)]
+                let b5 = t[2 * 256 + Int((hi >> 8) & 0xFF)]
+                let b6 = t[256 + Int((hi >> 16) & 0xFF)]
+                let b7 = t[Int(hi >> 24)]
+                let high = (b4 ^ b5) ^ (b6 ^ b7)
+                c = low ^ high
+                i += 8
+            }
+            while i < p.count {
+                let index = Int((c ^ UInt32(p[i])) & 0xFF)
+                c = t[index] ^ (c >> 8)
+                i += 1
             }
         }
         return ~c

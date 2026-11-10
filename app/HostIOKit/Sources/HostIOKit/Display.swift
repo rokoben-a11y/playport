@@ -43,6 +43,20 @@ public enum Display {
         }
     }
 
+    /// The picture's rectangle in a view: the whole view. The swap chain's
+    /// aspect does not inset it, so nothing has to be pressed before the
+    /// scene is covered.
+    public static func viewport(width: Double, height: Double) -> (Double, Double, Double, Double) {
+        (0, 0, width, height)
+    }
+
+    /// The metal viewport in pixels: the view's bounds times
+    /// traitCollection.displayScale. A fold passes the new bounds.
+    public static func surfacePixels(sceneWidth: Double, sceneHeight: Double, scale: Double) -> (Double, Double) {
+        guard sceneWidth > 0, sceneHeight > 0, scale > 0 else { return (0, 0) }
+        return (sceneWidth * scale, sceneHeight * scale)
+    }
+
     /// The rectangle a picture of content size fills inside a view of
     /// width × height when fitted without stretching and centred
     /// (CAMetalLayer contentsGravity resizeAspect): x, y, width, height.
@@ -52,6 +66,59 @@ public enum Display {
         let s = min(width / cw, height / ch)
         let (fw, fh) = (cw * s, ch * s)
         return ((width - fw) / 2, (height - fh) / 2, fw, fh)
+    }
+
+    /// A view point mapped into the aspect-fitted picture, origin at the
+    /// picture's top left, in the picture's own points. A point in a bar is
+    /// kept on the nearest edge of the picture, which is where the pointer
+    /// lands. The picture's width and height come back with the point so a
+    /// resize uses the picture it is looking at, not an earlier view size.
+    public static func picturePoint(viewX: Double, viewY: Double, contentWidth: Double, contentHeight: Double,
+                                    viewWidth: Double, viewHeight: Double) -> (x: Double, y: Double, width: Double, height: Double) {
+        let (px, py, pw, ph) = aspectFit(contentWidth: contentWidth, contentHeight: contentHeight,
+                                         width: viewWidth, height: viewHeight)
+        guard pw > 0, ph > 0 else { return (0, 0, pw, ph) }
+        let x = min(max(viewX, px), px + pw - 0.001) - px
+        let y = min(max(viewY, py), py + ph - 0.001) - py
+        return (x, y, pw, ph)
+    }
+
+    /// The safe area, in points, inside which the built-in on-screen layouts
+    /// keep the point sizes they were written at. It is the largest phone safe
+    /// area those layouts are checked against (the 6.9-inch landscape in
+    /// ControlLayoutTests: 956 × 440 with 62 pt side insets and a 21 pt home
+    /// indicator), not a panel this build names. A window no bigger than this
+    /// — every current iPhone, and a foldable's compact outside screen — is
+    /// unchanged. A larger safe area grows the same controls.
+    public static let phoneLayoutSafeWidth = 832.0
+    public static let phoneLayoutSafeHeight = 419.0
+
+    /// How much to grow a layout placed in a safe area of this size. 1 when
+    /// the area fits the phone layout. Above 1, the lesser of the two axes
+    /// against that phone area, so the same anchors and gaps grow with the
+    /// window and still fit it. A short window that is only wider stays at 1:
+    /// the controls are already as tall as that window wants. No size class
+    /// and no device id is read here; the window's safe area is the measurement.
+    public static func controlScale(safeWidth: Double, safeHeight: Double) -> Double {
+        guard safeWidth > 0, safeHeight > 0 else { return 1 }
+        if safeWidth <= phoneLayoutSafeWidth, safeHeight <= phoneLayoutSafeHeight { return 1 }
+        let s = min(safeWidth / phoneLayoutSafeWidth, safeHeight / phoneLayoutSafeHeight)
+        return s > 1 ? s : 1
+    }
+
+    /// The panel's pixels for the guest mode. The window's, when it is a
+    /// different panel from the screen (a foldable's inside window while
+    /// `UIScreen.main` is still the outside one, or the reverse). The screen's
+    /// own native pixels when the window is that screen, including a couple of
+    /// percent of rounding, so a phone's guest size stays the native bounds it
+    /// has always been. A window with no size yet uses the screen.
+    public static func panelPixels(windowWidth: Int, windowHeight: Int, screenWidth: Int, screenHeight: Int) -> (Int, Int) {
+        guard windowWidth > 1, windowHeight > 1 else { return (screenWidth, screenHeight) }
+        guard screenWidth > 0, screenHeight > 0 else { return (windowWidth, windowHeight) }
+        let wl = max(windowWidth, windowHeight), ws = min(windowWidth, windowHeight)
+        let sl = max(screenWidth, screenHeight), ss = min(screenWidth, screenHeight)
+        if abs(wl - sl) * 50 <= sl, abs(ws - ss) * 50 <= ss { return (screenWidth, screenHeight) }
+        return (windowWidth, windowHeight)
     }
 
     /// Unity's own screen switches, to append to a Unity title's arguments so

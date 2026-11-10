@@ -91,9 +91,9 @@ mkdir -p "$obj/members"
 mapfile -t members < <(llvm-ar t "$lib")
 [ "${#members[@]}" = "$(find "$obj/members" -type f | wc -l)" ] ||
     { echo "idevice: the archive has members with the same name" >&2; exit 1; }
-"$LD64" -r -arch arm64 -platform_version ios 17.0 26.5 -syslibroot "$IOSSDK" \
+"$LD64" -r -arch arm64 -platform_version ios 17.0 27.1 -syslibroot "$IOSSDK" \
     -o "$obj/prelinked.o" "${members[@]/#/$obj/members/}"
-"$LD64" -r -S -arch arm64 -platform_version ios 17.0 26.5 -syslibroot "$IOSSDK" "${exports[@]}" \
+"$LD64" -r -S -arch arm64 -platform_version ios 17.0 27.1 -syslibroot "$IOSSDK" "${exports[@]}" \
     -o "$obj/idevice_ffi.o" "$obj/prelinked.o"
 rm -rf "$obj/prelinked.o" "$obj/members" "$OUT/libidevice_ffi.a"
 llvm-ar rcsD "$OUT/libidevice_ffi.a" "$obj/idevice_ffi.o"

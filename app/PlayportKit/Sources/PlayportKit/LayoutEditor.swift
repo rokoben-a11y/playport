@@ -559,22 +559,27 @@ extension Control {
     var isOnePerLayout: Bool { isSurface || padStick != nil || tool != nil }
 
     /// Placed at `f` (in the view): its size, and its centre from `anchor` (nil: the
-    /// anchor of the ninth of the safe area `area` the centre is in).
+    /// anchor of the ninth of the safe area `area` the centre is in). Stored in
+    /// the phone layout's points, so a control edited on a large window is the
+    /// same control on a compact one (Display.controlScale).
     mutating func place(at f: TouchRect, in area: TouchRect, anchor: ControlAnchor? = nil) {
+        let s = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
         let cx = f.x + f.width / 2, cy = f.y + f.height / 2
         self.anchor = anchor ?? ControlAnchor.nearest(x: cx, y: cy, in: area)
         let p = self.anchor.point(in: area)
-        x = cx - p.x; y = cy - p.y
-        width = f.width; height = f.height
+        x = (cx - p.x) / s; y = (cy - p.y) / s
+        width = f.width / s; height = f.height / s
     }
 
     /// A floating stick's zone placed at `f` (in the view), anchored to the ninth of the safe area its centre is in.
+    /// Stored in the phone layout's points, as `place` stores a control.
     mutating func placeZone(at f: TouchRect, in area: TouchRect) {
         guard var z = floatingZone else { return }
+        let s = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
         z.anchor = ControlAnchor.nearest(x: f.x + f.width / 2, y: f.y + f.height / 2, in: area)
         let r = z.anchor.rect(width: f.width, height: f.height, in: area)
-        z.x = f.x - r.x; z.y = f.y - r.y
-        z.width = f.width; z.height = f.height
+        z.x = (f.x - r.x) / s; z.y = (f.y - r.y) / s
+        z.width = f.width / s; z.height = f.height / s
         floatingZone = z
     }
 }

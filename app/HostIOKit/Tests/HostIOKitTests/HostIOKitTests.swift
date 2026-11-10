@@ -305,6 +305,18 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(Display.unityScreenArgs(existing: ["-popupwindow"], width: 2736, height: 1260), [])
     }
 
+    func testTheViewportIsTheSceneNotAFittedPhonePicture() {
+        let scene = Display.viewport(width: 1400, height: 900)
+        XCTAssertEqual([scene.0, scene.1, scene.2, scene.3], [0, 0, 1400, 900])
+        let outside = Display.surfacePixels(sceneWidth: 956, sceneHeight: 440, scale: 3)
+        let folded = Display.surfacePixels(sceneWidth: 1400, sceneHeight: 900, scale: 3)
+        XCTAssertEqual(outside.0, 2868, accuracy: 1e-9)
+        XCTAssertEqual(outside.1, 1320, accuracy: 1e-9)
+        XCTAssertEqual(folded.0, 4200, accuracy: 1e-9)
+        XCTAssertEqual(folded.1, 2700, accuracy: 1e-9)
+        XCTAssertNotEqual(folded.0, outside.0)
+    }
+
     func testAspectFit() {
         // 4:3 in a 912 × 420 landscape view: pillarboxed, centred.
         let f = Display.aspectFit(contentWidth: 1024, contentHeight: 768, width: 912, height: 420)
@@ -316,6 +328,55 @@ final class DisplayTests: XCTestCase {
         // Unknown content size: the whole view, as a stretched layer.
         let h = Display.aspectFit(contentWidth: 0, contentHeight: 0, width: 912, height: 420)
         XCTAssertEqual([h.0, h.1, h.2, h.3], [0, 0, 912, 420])
+    }
+
+    /// A resize keeps a point on the same place in the picture. The content
+    /// stays a phone-shaped swap chain; the view becomes a larger, squarer
+    /// window (a foldable's inside screen). The centre of the view is still
+    /// the centre of the picture, and a point in the new bar is the picture's edge.
+    func testPicturePointFollowsAResize() {
+        let content = (w: 2868.0, h: 1320.0)
+        let phone = Display.picturePoint(viewX: 478, viewY: 220, contentWidth: content.w, contentHeight: content.h,
+                                         viewWidth: 956, viewHeight: 440)
+        XCTAssertEqual(phone.width, 956, accuracy: 1e-6)
+        XCTAssertEqual(phone.height, 440, accuracy: 1e-6)
+        XCTAssertEqual(phone.x, 478, accuracy: 1e-6)
+        XCTAssertEqual(phone.y, 220, accuracy: 1e-6)
+        let inside = Display.picturePoint(viewX: 700, viewY: 450, contentWidth: content.w, contentHeight: content.h,
+                                          viewWidth: 1400, viewHeight: 900)
+        XCTAssertEqual(inside.width, 1400, accuracy: 1e-6)
+        XCTAssertEqual(inside.x, 700, accuracy: 1e-6)
+        XCTAssertEqual(inside.y, inside.height / 2, accuracy: 1e-6)
+        let bar = Display.picturePoint(viewX: 700, viewY: 10, contentWidth: content.w, contentHeight: content.h,
+                                       viewWidth: 1400, viewHeight: 900)
+        XCTAssertEqual(bar.y, 0, accuracy: 1e-6)
+        XCTAssertEqual(bar.x, 700, accuracy: 1e-6)
+        // The same fraction after the view and the swap chain grow together: the picture fills it.
+        let grown = Display.picturePoint(viewX: 700, viewY: 322.1, contentWidth: content.w * 1.5, contentHeight: content.h * 1.5,
+                                         viewWidth: 1400, viewHeight: 644.2)
+        XCTAssertEqual(grown.x / grown.width, 0.5, accuracy: 1e-3)
+        XCTAssertEqual(grown.y / grown.height, 0.5, accuracy: 1e-3)
+    }
+
+    func testControlScaleStaysOneOnAPhoneAndGrowsOnALargerWindow() {
+        XCTAssertEqual(Display.controlScale(safeWidth: 832, safeHeight: 419), 1)
+        XCTAssertEqual(Display.controlScale(safeWidth: 667, safeHeight: 375), 1)
+        XCTAssertEqual(Display.controlScale(safeWidth: 750, safeHeight: 381), 1)
+        // Wider than a phone but no taller: the layout already fits the height.
+        XCTAssertEqual(Display.controlScale(safeWidth: 2000, safeHeight: 400), 1)
+        let s = Display.controlScale(safeWidth: 1400, safeHeight: 900)
+        XCTAssertEqual(s, 1400 / 832, accuracy: 1e-12)
+        XCTAssertEqual(Display.controlScale(safeWidth: 0, safeHeight: 900), 1)
+    }
+
+    func testPanelPixelsFollowsTheWindowWhenItIsAnotherPanel() {
+        XCTAssertEqual(Display.panelPixels(windowWidth: 0, windowHeight: 0, screenWidth: 2868, screenHeight: 1320).0, 2868)
+        // A point of rounding against the screen's native pixels stays the screen.
+        let same = Display.panelPixels(windowWidth: 2870, windowHeight: 1321, screenWidth: 1320, screenHeight: 2868)
+        XCTAssertEqual([same.0, same.1], [1320, 2868])
+        // A window whose short side is nowhere near the screen's is that window.
+        let other = Display.panelPixels(windowWidth: 2400, windowHeight: 1800, screenWidth: 2868, screenHeight: 1320)
+        XCTAssertEqual([other.0, other.1], [2400, 1800])
     }
 }
 

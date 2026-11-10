@@ -101,13 +101,20 @@ public enum TouchKeyboard {
     }
 
     /// The keyboard in `area` (the safe area): the panel across its bottom.
+    /// On a safe area larger than the phone layout the rows grow with it
+    /// (Display.controlScale); the keys still share the width.
     public static func layout(in area: TouchRect) -> Layout {
+        let s = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
+        let heights = rowHeights.map { $0 * s }
+        let gap = Self.gap * s, padding = Self.padding * s
+        let panelHeight = heights.reduce(0, +) + gap * Double(heights.count - 1) + 2 * padding
+        let closeWidth = Self.closeWidth * s, closeHeight = Self.closeHeight * s, closeGap = Self.closeGap * s
         let panel = TouchRect(x: area.x, y: area.y + area.height - panelHeight, width: area.width, height: panelHeight)
         let inner = panel.width - 2 * padding
         var keys: [PlacedKey] = []
         var y = panel.y + padding
         for (r, row) in rows.enumerated() {
-            let h = rowHeights[r]
+            let h = heights[r]
             // What a touch hits: from the middle of the gap above to the middle of the gap below (the panel's edge at the ends).
             let top = r == 0 ? panel.y : y - gap / 2
             let bottom = r == rows.count - 1 ? panel.maxY : y + h + gap / 2

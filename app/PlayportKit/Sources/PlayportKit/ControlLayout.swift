@@ -8,8 +8,10 @@
 // and the home indicator, on whichever side they are) by an anchor (a corner,
 // an edge's middle or the centre), the offset of its centre from there and its
 // size, in points, so one layout fits every iPhone in either landscape
-// orientation; one larger than the safe area is cut to it, and one that would
-// reach out of it is moved back in. A floating stick's zone is a corner of the
+// orientation. A safe area larger than that phone layout (Display.controlScale:
+// a tablet, or a foldable's inside screen) grows the same points; the compact
+// window keeps them. One larger than the safe area is cut to it, and one that
+// would reach out of it is moved back in. There is no second, tablet layout. A floating stick's zone is a corner of the
 // safe area, moved by an offset (0 when left out, so a layout saved without one
 // reads the same).
 //
@@ -141,11 +143,13 @@ public struct ControlZone: Codable, Equatable, Sendable {
         height = try c.decode(Double.self, forKey: .height)
     }
 
-    /// Where it is in `area`, cut to it.
+    /// Where it is in `area`, cut to it. Offsets and size grow with the area
+    /// when it is larger than the phone layout (Display.controlScale).
     public func frame(in area: TouchRect) -> TouchRect {
-        var r = anchor.rect(width: min(width, area.width), height: min(height, area.height), in: area)
-        r.x += x
-        r.y += y
+        let s = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
+        var r = anchor.rect(width: min(width * s, area.width), height: min(height * s, area.height), in: area)
+        r.x += x * s
+        r.y += y * s
         return r.kept(in: area)
     }
 }
@@ -193,12 +197,15 @@ public struct Control: Codable, Equatable, Sendable, Identifiable {
     }
 
     /// Where it is in a view of width × height with these safe-area insets: cut
-    /// to the safe area and kept inside it.
+    /// to the safe area and kept inside it. `x`, `y`, `width` and `height` are
+    /// the phone layout's points; a larger safe area scales them
+    /// (Display.controlScale) so the same control fills the same share of it.
     public func frame(width w: Double, height h: Double, insets: ControlInsets = .zero) -> TouchRect {
         let area = insets.area(width: w, height: h)
+        let s = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
         let a = anchor.point(in: area)
-        let cw = min(width, area.width), ch = min(height, area.height)
-        return TouchRect(x: a.x + x - cw / 2, y: a.y + y - ch / 2, width: cw, height: ch).kept(in: area)
+        let cw = min(width * s, area.width), ch = min(height * s, area.height)
+        return TouchRect(x: a.x + x * s - cw / 2, y: a.y + y * s - ch / 2, width: cw, height: ch).kept(in: area)
     }
 
     /// Why it cannot be used, nil when it can.

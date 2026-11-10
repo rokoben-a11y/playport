@@ -32,9 +32,9 @@ enum TitleScreen {
     /// `frameLimit` the player's limit, 0 for none.
     @MainActor
     static func configure(title: String? = nil, frameLimit: Int = 0) {
-        let px = UIScreen.main.nativeBounds.size
+        let px = Self.panelPixels()
         let screen: String
-        if let (w, h) = Display.guestSize(panelLong: Int(px.width), panelShort: Int(px.height), spec: title) {
+        if let (w, h) = Display.guestSize(panelLong: px.width, panelShort: px.height, spec: title) {
             setenv("MADEIRA_SCREEN_W", String(w), 1)
             setenv("MADEIRA_SCREEN_H", String(h), 1)
             screen = "\(w)x\(h)" + (title.map { " (the title's screen \($0))" } ?? "")
@@ -44,16 +44,43 @@ enum TitleScreen {
         madeira_set_vsync_locked(0)
         PacedMetalLayer.limit(fps: frameLimit)
         // The refresh the guest's monitor reports (patches/madeira-unix/0011-win32u-report-the-host-panel-s-refresh-rate-for-the-.patch).
-        let hz = UIScreen.main.maximumFramesPerSecond
+        let hz = Self.panelRefresh()
         setenv("MADEIRA_SCREEN_HZ", String(hz), 0)
         if !linked {
             linked = true
             startDisplayLink()
         }
-        summary = "screen \(screen) (panel \(Int(px.width))x\(Int(px.height)) px), landscape, swap chain aspect-fitted, "
+        summary = "screen \(screen) (panel \(px.width)x\(px.height) px), landscape, picture fills the view, "
             + "presents free-running, display link asks for up to \(hz) Hz"
             + (frameLimit > 0 ? ", frames limited to \(frameLimit) FPS" : ", no frame rate limit")
             + ", guest monitor \(ProcessInfo.processInfo.environment["MADEIRA_SCREEN_HZ"] ?? "60") Hz"
+    }
+
+    /// The pixels the guest mode is chosen from: the key window's bounds times
+    /// its trait display scale. A fold changes those bounds; the main screen
+    /// is not the size.
+    @MainActor
+    static func panelPixels() -> (width: Int, height: Int) {
+        guard let scene = foregroundScene() else { return (0, 0) }
+        let window = scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
+        let bounds = (window?.bounds.width ?? 0) > 1 ? window!.bounds : scene.coordinateSpace.bounds
+        let scale = window?.traitCollection.displayScale ?? scene.traitCollection.displayScale
+        let s = scale > 0 ? scale : scene.screen.scale
+        guard bounds.width > 1, bounds.height > 1, s > 0 else { return (0, 0) }
+        let px = Display.surfacePixels(sceneWidth: bounds.width, sceneHeight: bounds.height, scale: s)
+        return (Int(px.0.rounded()), Int(px.1.rounded()))
+    }
+
+    /// The refresh the scene's own screen reports.
+    @MainActor
+    static func panelRefresh() -> Int {
+        foregroundScene()?.screen.maximumFramesPerSecond ?? 60
+    }
+
+    @MainActor
+    private static func foregroundScene() -> UIWindowScene? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
     }
 
     /// ProMotion keeps a CAMetalLayer at 60 Hz unless the app asks for more:
@@ -62,7 +89,7 @@ enum TitleScreen {
     @MainActor
     private static func startDisplayLink() {
         let link = CADisplayLink(target: Tick.shared, selector: #selector(Tick.tick))
-        let top = Float(UIScreen.main.maximumFramesPerSecond)
+        let top = Float(Self.panelRefresh())
         link.preferredFrameRateRange = CAFrameRateRange(minimum: min(60, top), maximum: top, preferred: top)
         link.add(to: .main, forMode: .common)
     }

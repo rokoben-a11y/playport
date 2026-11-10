@@ -928,7 +928,8 @@ final class GameSurfaceView: UIView {
     init() {
         super.init(frame: .zero)
         backgroundColor = .black
-        layer.contentsGravity = .resizeAspect
+        // Fill the view. .resizeAspect would letterbox a mismatched drawable.
+        layer.contentsGravity = .resize
         layer.addSublayer(windows)
         addSubview(controls)
         addSubview(magnifier)
@@ -962,6 +963,7 @@ final class GameSurfaceView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        applyViewport(bounds: bounds)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         windows.frame = bounds
@@ -981,7 +983,7 @@ final class GameSurfaceView: UIView {
         // the screen's pixel scale. Vulkan WSI measures bounds * contentsScale;
         // leaving it at 1 makes a native-pixel swapchain permanently suboptimal
         // (912x420 points versus 2736x1260 pixels on a 3x screen).
-        contentScaleFactor = window.screen.nativeScale
+        applyViewport(bounds: bounds)
         // Landscape before the runtime starts, so the swap chain is made at the final size.
         window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         window.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape))
@@ -1016,7 +1018,7 @@ final class GameSurfaceView: UIView {
     }
 
     /// A finger at p: on a guest GDI window while one is shown, else at the same
-    /// point of the game's aspect-fitted picture.
+    /// point of the scene.
     private func route(_ p: CGPoint, phase: UITouch.Phase) {
         if GuestWindows.holdingAfterExit {
             if phase == .ended { GuestWindows.endExitHold() }
@@ -1027,17 +1029,31 @@ final class GameSurfaceView: UIView {
             HostIO.shared.windowTouch(x: dx, y: dy, phase: phase)
             return
         }
-        let r = picture
-        HostIO.shared.touch(at: CGPoint(x: p.x - r.minX, y: p.y - r.minY), in: r.size, phase: phase)
+        // The picture is the scene, so a finger maps across the whole view.
+        let r = Display.viewport(width: Double(bounds.width), height: Double(bounds.height))
+        HostIO.shared.touch(at: p, in: CGSize(width: r.2, height: r.3), phase: phase)
     }
 
-    /// Where the game's picture is in the view: the swap chain aspect-fitted, black around it
-    /// (contentsGravity resizeAspect). A game touch maps through it, and so does the on-screen
-    /// controls' pointer surface (Point & click; OnScreenControls.began).
+    /// Where the game's picture is: the view, which is the window scene.
+    /// A game touch maps through it, and so does the on-screen controls'
+    /// pointer surface.
     var picture: CGRect {
-        guard let d = (layer as? CAMetalLayer)?.drawableSize else { return bounds }
-        let r = Display.aspectFit(contentWidth: d.width, contentHeight: d.height, width: bounds.width, height: bounds.height)
+        let r = Display.viewport(width: Double(bounds.width), height: Double(bounds.height))
         return CGRect(x: r.0, y: r.1, width: r.2, height: r.3)
+    }
+
+    /// The metal viewport is this view's bounds times its display scale.
+    /// `.resize` fills those bounds. A fold calls this again from
+    /// layoutSubviews and from the controller's viewWillTransition.
+    func applyViewport(bounds: CGRect) {
+        layer.contentsGravity = .resize
+        let scale = traitCollection.displayScale
+        guard scale > 0, bounds.width > 1, bounds.height > 1 else { return }
+        if contentScaleFactor != scale { contentScaleFactor = scale }
+        guard let metal = layer as? CAMetalLayer else { return }
+        let px = Display.surfacePixels(sceneWidth: bounds.width, sceneHeight: bounds.height, scale: scale)
+        let pixels = CGSize(width: px.0, height: px.1)
+        if metal.drawableSize != pixels { metal.drawableSize = pixels }
     }
 
     #if !PLAYPORT_RELEASE
@@ -1131,8 +1147,26 @@ enum GuestWindows {
     }
 }
 
-struct GameSurface: UIViewRepresentable {
-    func makeUIView(context: Context) -> GameSurfaceView { GameSurfaceView() }
-    func updateUIView(_ view: GameSurfaceView, context: Context) {}
+/// The game's view controller. SwiftUI's window is the scene's window; this
+/// controller only owns the metal view and resizes it with the scene.
+final class GameSurfaceController: UIViewController {
+    let surface = GameSurfaceView()
+
+    override func loadView() {
+        view = surface
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        surface.applyViewport(bounds: CGRect(origin: .zero, size: size))
+        coordinator.animate(alongsideTransition: nil) { _ in
+            self.surface.applyViewport(bounds: self.surface.bounds)
+        }
+    }
+}
+
+struct GameSurface: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> GameSurfaceController { GameSurfaceController() }
+    func updateUIViewController(_ controller: GameSurfaceController, context: Context) {}
 }
 #endif
