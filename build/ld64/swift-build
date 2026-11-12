@@ -14,6 +14,12 @@
 # tree (dropped: dyld on the phone never finds it), so the IPA names no
 # workstation path (verify-ipa.py).
 #
+# iPhone Duo: every final link is stamped LC_BUILD_VERSION sdk 27.1 (the
+# -platform_version and -sdk_version sdk numbers are rewritten to the literal
+# 27.1; the SDK linked against stays iPhoneOS26.5.sdk). UIKit keys the Duo
+# inner-display fill on that number. It is hardcoded, not an env var, because
+# the linker runs with a stripped environment.
+#
 # The build runs the linker with a stripped environment, so the toolset and
 # the linker script are generated here with absolute paths, into the
 # package's gitignored .build/ld64/.
@@ -45,6 +51,8 @@ while [ "\$n" -gt 0 ]; do
     a=\$1; shift; n=\$((n - 1))
     case \$a in
     -add_ast_path) set -- "\$@" "\$a" "\${1#$repo/}"; shift; n=\$((n - 1)) ;;
+    -platform_version) set -- "\$@" "\$a" "\$1" "\$2" 27.1; shift 3; n=\$((n - 3)) ;;
+    -sdk_version) set -- "\$@" "\$a" 27.1; shift; n=\$((n - 1)) ;;
     -rpath) case \$1 in "$repo"/*) ;; *) set -- "\$@" "\$a" "\$1" ;; esac; shift; n=\$((n - 1)) ;;
     *) set -- "\$@" "\$a" ;;
     esac
