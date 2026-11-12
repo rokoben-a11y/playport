@@ -442,3 +442,109 @@ public struct ControlLayout: Codable, Equatable, Sendable {
         ])
     }
 }
+
+// MARK: - iPhone Duo inner display: the bottom band
+//
+// Ported from HaloPad 0.3.15 duo-7 (rokoben-a11y/projectreach 9c81f4f,
+// port/ios/HaloPadOverlay.m innerBottomBand and port/shared/hp_control_layout.h
+// bottom_band). When the scene is regular × regular (the open inner display)
+// the layout's controls sit in the bottom `share` of the safe area instead of
+// its corners, and an `centerGap` column down the middle (the 40 pt fold band
+// plus its 20 pt margins) is kept free of controls. The iOS 26.5 SDK has no
+// reserved-regions API, so this is HaloPad's own fallback: no regions, a plain
+// bottom band. Compact size classes (the outer display) never take it.
+//
+// A control anchored on the leading side goes in the band's left half, one on
+// the trailing side in its right half, keeping its anchor and offsets there;
+// one anchored in the middle column is moved to the nearer half. Points scale
+// down (never up) by the most that fits the layout's own reach into the band.
+// Surfaces (the look area and the pointer) keep the whole safe area.
+public enum ControlBand {
+    /// The part of the safe area's height the band takes, from its bottom.
+    public static let share = 0.4
+    /// The column down the middle kept free of controls, in points.
+    public static let centerGap = 80.0
+
+    /// The two halves of the band in a safe area: left, right.
+    public static func halves(of area: TouchRect) -> (left: TouchRect, right: TouchRect) {
+        let h = area.height * share
+        let y = area.y + area.height - h
+        let w = max(0, (area.width - centerGap) / 2)
+        return (TouchRect(x: area.x, y: y, width: w, height: h),
+                TouchRect(x: area.x + area.width - w, y: y, width: w, height: h))
+    }
+}
+
+extension ControlAnchor {
+    /// -1 leading, 1 trailing, 0 the middle column.
+    var bandSide: Int {
+        switch self {
+        case .topLeading, .leading, .bottomLeading: -1
+        case .topTrailing, .trailing, .bottomTrailing: 1
+        case .top, .center, .bottom: 0
+        }
+    }
+}
+
+extension ControlLayout {
+    /// The scale the band uses: at most 1, and small enough that each half
+    /// holds the layout's tallest and widest reach.
+    func bandScale(left: TouchRect) -> Double {
+        var top = 0.0, bottom = 0.0, middle = 0.0, wide = 0.0
+        // A control's reach is from its centre; a zone's from its anchored edge.
+        func add(_ a: ControlAnchor, x: Double, y: Double, width: Double, height: Double, edge: Bool) {
+            let half = edge ? 0 : 0.5
+            switch a {
+            case .topLeading, .top, .topTrailing: top = max(top, y + height * (1 - half))
+            case .bottomLeading, .bottom, .bottomTrailing: bottom = max(bottom, -y + height * (1 - half))
+            case .leading, .center, .trailing: middle = max(middle, abs(y) + height / 2)
+            }
+            wide = max(wide, a.bandSide == 0 ? width : abs(x) + width * (1 - half))
+        }
+        for c in controls where !c.isSurface {
+            add(c.anchor, x: c.x, y: c.y, width: c.width, height: c.height, edge: false)
+            if let z = c.floatingZone { add(z.anchor, x: z.x, y: z.y, width: z.width, height: z.height, edge: true) }
+        }
+        let tall = max(top + bottom, 2 * middle)
+        var s = 1.0
+        if tall > 0, left.height > 0 { s = min(s, left.height / tall) }
+        if wide > 0, left.width > 0 { s = min(s, left.width / wide) }
+        return max(s, 0.01)
+    }
+
+    /// The half a control or zone on this anchor goes in; a middle one, the half nearer its centre.
+    static func half(_ anchor: ControlAnchor, x: Double, halves: (left: TouchRect, right: TouchRect)) -> TouchRect {
+        switch anchor.bandSide {
+        case -1: halves.left
+        case 1: halves.right
+        default: x <= 0 ? halves.left : halves.right
+        }
+    }
+
+    /// `targets`, laid out in the bottom band (ControlBand) of a regular ×
+    /// regular scene: what TouchControls hit-tests on the iPhone Duo's open
+    /// inner display. Surfaces keep the whole safe area.
+    public func bandTargets(width: Double, height: Double, insets: ControlInsets = .zero) -> [TouchTarget] {
+        let area = insets.area(width: width, height: height)
+        let halves = ControlBand.halves(of: area)
+        let s = bandScale(left: halves.left)
+        let whole = targets(width: width, height: height, insets: insets)
+        return zip(controls, whole).map { c, t in
+            if c.isSurface { return t }
+            let region = Self.half(c.anchor, x: c.x, halves: halves)
+            let p = c.anchor.point(in: region)
+            let cw = min(c.width * s, region.width), ch = min(c.height * s, region.height)
+            let frame = TouchRect(x: p.x + c.x * s - cw / 2, y: p.y + c.y * s - ch / 2, width: cw, height: ch).kept(in: region)
+            var kind = t.kind
+            if c.kind == .stick, let z = c.floatingZone {
+                let zr = Self.half(z.anchor, x: z.x, halves: halves)
+                var r = z.anchor.rect(width: min(z.width * s, zr.width), height: min(z.height * s, zr.height), in: zr)
+                r.x += z.x * s
+                r.y += z.y * s
+                let zone = r.kept(in: zr)
+                if case .pad(let stick) = c.actions[0] { kind = .stick(stick, zone: zone) } else { kind = .keyStick(c.actions, zone: zone) }
+            }
+            return TouchTarget(id: c.id, kind: kind, frame: frame)
+        }
+    }
+}

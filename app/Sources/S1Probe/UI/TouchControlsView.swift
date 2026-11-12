@@ -108,6 +108,9 @@ final class OnScreenControls: ObservableObject {
     private var dialog = false
     private var size = CGSize.zero
     private var insets = ControlInsets.zero
+    /// The iPhone Duo's open inner display (regular × regular): the controls sit in the
+    /// safe area's bottom band, clear of the fold (ControlBand, from HaloPad 0.3.15 duo-7).
+    private var bottomBand = false
     private var subscriptions: Set<AnyCancellable> = []
     private let haptic = UIImpactFeedbackGenerator(style: .light)
     weak var view: TouchControlsView?
@@ -198,14 +201,16 @@ final class OnScreenControls: ObservableObject {
     }
 
     /// The view's size and safe area: the controls placed again.
-    func layout(in s: CGSize, insets i: ControlInsets) {
-        guard s != size || i != insets else { return }
+    func layout(in s: CGSize, insets i: ControlInsets, bottomBand band: Bool = false) {
+        guard s != size || i != insets || band != bottomBand else { return }
         size = s
         insets = i
+        bottomBand = band
         let area = i.area(width: Double(s.width), height: Double(s.height))
         let scale = Display.controlScale(safeWidth: area.width, safeHeight: area.height)
         Self.log("placed in \(Int(s.width))x\(Int(s.height)), safe area insets top=\(Int(i.top)) left=\(Int(i.left)) "
-                 + "bottom=\(Int(i.bottom)) right=\(Int(i.right)), control scale \(scale)")
+                 + "bottom=\(Int(i.bottom)) right=\(Int(i.right)), control scale \(scale)"
+                 + (band ? ", bottom band (regular x regular)" : ""))
         place()
     }
 
@@ -253,7 +258,9 @@ final class OnScreenControls: ObservableObject {
             controls.setTargets(k.targets)
         } else {
             keyboardLayout = nil
-            controls.setTargets(layout?.targets(width: Double(size.width), height: Double(size.height), insets: insets) ?? [])
+            let w = Double(size.width), h = Double(size.height)
+            controls.setTargets((bottomBand ? layout?.bandTargets(width: w, height: h, insets: insets)
+                                            : layout?.targets(width: w, height: h, insets: insets)) ?? [])
         }
         // setTargets replaces the pointer's view with the whole window. Put the
         // aspect-fitted picture back before the next touch, including after a resize.
@@ -355,15 +362,29 @@ final class TouchControlsView: UIView {
         addSubview(hint)
         accessibilityIdentifier = "touch-controls"
         OnScreenControls.shared.view = self
+        // Opening or folding the iPhone Duo changes the size classes: lay out again.
+        registerForTraitChanges([UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self]) { (view: TouchControlsView, _) in
+            view.setNeedsLayout()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("TouchControlsView is created in code") }
+
+    /// HaloPad 0.3.15 duo-7's innerBottomBand: the open inner display is regular in both
+    /// size classes; the scene's own bounds are what gets laid out. A compact outer
+    /// display never takes it.
+    private var innerBottomBand: Bool {
+        guard traitCollection.horizontalSizeClass == .regular, traitCollection.verticalSizeClass == .regular else { return false }
+        let scene = window?.windowScene?.coordinateSpace.bounds ?? bounds
+        return scene.width > 0 && scene.height > 0
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         let i = gameSafeInsets
         OnScreenControls.shared.layout(in: bounds.size, insets: ControlInsets(top: Double(i.top), left: Double(i.left),
-                                                                              bottom: Double(i.bottom), right: Double(i.right)))
+                                                                              bottom: Double(i.bottom), right: Double(i.right)),
+                                       bottomBand: innerBottomBand)
         // layout returns immediately when the size is unchanged, which is also
         // when only the swap chain's drawable size changed.
         OnScreenControls.shared.syncPicture()
