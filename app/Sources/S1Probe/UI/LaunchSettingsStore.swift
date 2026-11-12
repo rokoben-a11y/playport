@@ -87,7 +87,12 @@ enum LaunchSettingsText {
         }
     }
 
-    static var frameLimits: [Int] { LaunchSettings.frameLimits(maxRate: UIScreen.main.maximumFramesPerSecond) }
+    static var frameLimits: [Int] {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let rate = (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?
+            .screen.maximumFramesPerSecond ?? 60
+        return LaunchSettings.frameLimits(maxRate: rate)
+    }
 
     /// `pixels` adds the size the guest gets on this phone.
     static func screen(_ spec: String?, pixels: Bool = true, aspect: ScreenAspect = .phone) -> String {

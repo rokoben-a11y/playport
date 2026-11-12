@@ -44,36 +44,43 @@ enum TitleScreen {
         madeira_set_vsync_locked(0)
         PacedMetalLayer.limit(fps: frameLimit)
         // The refresh the guest's monitor reports (patches/madeira-unix/0011-win32u-report-the-host-panel-s-refresh-rate-for-the-.patch).
-        let hz = UIScreen.main.maximumFramesPerSecond
+        let hz = Self.panelRefresh()
         setenv("MADEIRA_SCREEN_HZ", String(hz), 0)
         if !linked {
             linked = true
             startDisplayLink()
         }
-        summary = "screen \(screen) (panel \(px.width)x\(px.height) px), landscape, swap chain aspect-fitted, "
+        summary = "screen \(screen) (panel \(px.width)x\(px.height) px), landscape, picture fills the view, "
             + "presents free-running, display link asks for up to \(hz) Hz"
             + (frameLimit > 0 ? ", frames limited to \(frameLimit) FPS" : ", no frame rate limit")
             + ", guest monitor \(ProcessInfo.processInfo.environment["MADEIRA_SCREEN_HZ"] ?? "60") Hz"
     }
 
-    /// The pixels the guest mode is chosen from: the key window's, when that
-    /// window is a different panel from `UIScreen.main` (a foldable's inside
-    /// screen while the main screen is still the outside one). The screen's
-    /// native pixels otherwise, which is every current iPhone.
+    /// The pixels the guest mode is chosen from: the key window's bounds times
+    /// its trait display scale. A fold changes those bounds; the main screen
+    /// is not the size.
     @MainActor
     static func panelPixels() -> (width: Int, height: Int) {
-        let screen = UIScreen.main.nativeBounds.size
-        var windowW = 0, windowH = 0
-        if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
-            .flatMap(\.windows).first(where: \.isKeyWindow),
-           window.bounds.width > 1, window.bounds.height > 1 {
-            let s = window.screen.nativeScale
-            windowW = Int((window.bounds.width * s).rounded())
-            windowH = Int((window.bounds.height * s).rounded())
-        }
-        let px = Display.panelPixels(windowWidth: windowW, windowHeight: windowH,
-                                     screenWidth: Int(screen.width), screenHeight: Int(screen.height))
-        return (px.0, px.1)
+        guard let scene = foregroundScene() else { return (0, 0) }
+        let window = scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
+        let bounds = (window?.bounds.width ?? 0) > 1 ? window!.bounds : scene.coordinateSpace.bounds
+        let scale = window?.traitCollection.displayScale ?? scene.traitCollection.displayScale
+        let s = scale > 0 ? scale : scene.screen.scale
+        guard bounds.width > 1, bounds.height > 1, s > 0 else { return (0, 0) }
+        let px = Display.surfacePixels(sceneWidth: bounds.width, sceneHeight: bounds.height, scale: s)
+        return (Int(px.0.rounded()), Int(px.1.rounded()))
+    }
+
+    /// The refresh the scene's own screen reports.
+    @MainActor
+    static func panelRefresh() -> Int {
+        foregroundScene()?.screen.maximumFramesPerSecond ?? 60
+    }
+
+    @MainActor
+    private static func foregroundScene() -> UIWindowScene? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
     }
 
     /// ProMotion keeps a CAMetalLayer at 60 Hz unless the app asks for more:
@@ -82,7 +89,7 @@ enum TitleScreen {
     @MainActor
     private static func startDisplayLink() {
         let link = CADisplayLink(target: Tick.shared, selector: #selector(Tick.tick))
-        let top = Float(UIScreen.main.maximumFramesPerSecond)
+        let top = Float(Self.panelRefresh())
         link.preferredFrameRateRange = CAFrameRateRange(minimum: min(60, top), maximum: top, preferred: top)
         link.add(to: .main, forMode: .common)
     }
