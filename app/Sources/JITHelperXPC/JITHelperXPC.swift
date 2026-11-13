@@ -13,6 +13,8 @@ public let jitHelperEndpointKey = "PlayportJITEndpoint"
 /// The work the helper does for the app, one call at a time on its serial queue.
 /// pairingFile is the RP pairing file's bytes: the helper cannot read the app's
 /// Documents, and a free team has no App Group, so the bytes travel over XPC.
+/// rsdPort is RemotePairing's port at 10.7.0.1 (the app's RemotePairingPort.swift;
+/// playport #55: iOS 27 may move it from 49152), for StikJIT.Configuration.
 @objc(PlayportJITHelping)
 public protocol JITHelping {
     /// StikJIT's enableJIT for targetPID with Playport's universal protocol
@@ -20,10 +22,10 @@ public protocol JITHelping {
     /// (reachability, DDI mount), attaches, serves the target's brk #0xf00d
     /// calls and detaches. The reply's argument is nil on success,
     /// or the error.
-    func enableJIT(targetPID: Int32, pairingFile: Data, reply: @escaping (String?) -> Void)
+    func enableJIT(targetPID: Int32, pairingFile: Data, rsdPort: UInt16, reply: @escaping (String?) -> Void)
     /// StikJIT's prepareDevice: the readiness (`ready`, `unreachable`,
     /// `not ready`), the reason when not ready, and TXM (`present`, `absent`, `unknown`).
-    func prepare(pairingFile: Data, reply: @escaping (String, String?, String) -> Void)
+    func prepare(pairingFile: Data, rsdPort: UInt16, reply: @escaping (String, String?, String) -> Void)
     /// Deletes the cached Developer Disk Image files; the next preparation downloads them again.
     func resetDDI(reply: @escaping (String?) -> Void)
     #if !PLAYPORT_RELEASE
@@ -35,7 +37,7 @@ public protocol JITHelping {
     /// at once with the helper's PID; the ticker stops by itself after capS.
     /// hold: the helper also takes its own xpc transaction and ignores SIGTERM
     /// (logging it), to see whether that keeps it alive once the host is gone.
-    func lifetimeProbe(intervalMs: Int, capS: Int, hold: Bool, pairingFile: Data, reply: @escaping (Int32) -> Void)
+    func lifetimeProbe(intervalMs: Int, capS: Int, hold: Bool, pairingFile: Data, rsdPort: UInt16, reply: @escaping (Int32) -> Void)
     /// Dev builds: the last probe's file, deleted as it is read (empty if none).
     func lifetimeReport(reply: @escaping (String) -> Void)
     #endif

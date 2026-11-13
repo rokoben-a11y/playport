@@ -49,9 +49,9 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
         say("helper pid \(getpid()) connected")
     }
 
-    func enableJIT(targetPID: Int32, pairingFile: Data, reply: @escaping (String?) -> Void) {
+    func enableJIT(targetPID: Int32, pairingFile: Data, rsdPort: UInt16, reply: @escaping (String?) -> Void) {
         queue.async { [self] in
-            say("enableJIT pid \(targetPID)")
+            say("enableJIT pid \(targetPID), rsd port \(rsdPort)")
             guard let script = Bundle.main.url(forResource: "playport-universal", withExtension: "js") else {
                 say("enableJIT failed: playport-universal.js is not in the helper extension")
                 reply("playport-universal.js is not in the helper extension")
@@ -59,7 +59,8 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
             }
             do {
                 try withPairingFile(pairingFile) { url in
-                    try StikJIT.enableJIT(targetPID: targetPID, pairingFile: url, ddiPaths: Self.ddi, script: .custom(script),
+                    try StikJIT.enableJIT(targetPID: targetPID, pairingFile: url, ddiPaths: Self.ddi,
+                                          configuration: Self.configuration(rsdPort), script: .custom(script),
                                           preparationProgress: { self.say("prepare: \(Self.describe($0))") },
                                           progress: { self.say($0) })
                 }
@@ -72,11 +73,14 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
         }
     }
 
-    func prepare(pairingFile: Data, reply: @escaping (String, String?, String) -> Void) {
+    func prepare(pairingFile: Data, rsdPort: UInt16, reply: @escaping (String, String?, String) -> Void) {
         queue.async { [self] in
+            say("prepare, rsd port \(rsdPort)")
             do {
                 let readiness = try withPairingFile(pairingFile) { url in
-                    StikJIT.prepareDevice(pairingFile: url, paths: Self.ddi) { self.say("prepare: \(Self.describe($0))") }
+                    StikJIT.prepareDevice(pairingFile: url, paths: Self.ddi, configuration: Self.configuration(rsdPort)) {
+                        self.say("prepare: \(Self.describe($0))")
+                    }
                 }
                 switch readiness {
                 case .ready(let state):
@@ -187,7 +191,7 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
     private var sigterm: DispatchSourceSignal?
     private var probeTransaction: AnyObject?
 
-    func lifetimeProbe(intervalMs: Int, capS: Int, hold: Bool, pairingFile: Data, reply: @escaping (Int32) -> Void) {
+    func lifetimeProbe(intervalMs: Int, capS: Int, hold: Bool, pairingFile: Data, rsdPort: UInt16, reply: @escaping (Int32) -> Void) {
         FileManager.default.createFile(atPath: Self.probeURL.path, contents: nil)
         probeLock.lock()
         probeFile = try? FileHandle(forWritingTo: Self.probeURL)
@@ -223,7 +227,7 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
                 let result: String
                 do {
                     let r = try self.withPairingFile(pairingFile) { url in
-                        StikJIT.prepareDevice(pairingFile: url, paths: Self.ddi) { stage in
+                        StikJIT.prepareDevice(pairingFile: url, paths: Self.ddi, configuration: Self.configuration(rsdPort)) { stage in
                             self.probe("prepareDevice: \(Self.describe(stage))")
                         }
                     }
@@ -271,6 +275,11 @@ final class JITHelper: NSObject, NSExtensionRequestHandling, JITHelping {
         reply(text)
     }
     #endif
+
+    /// StikJIT's defaults (10.7.0.1, 5 s) with the app's RemotePairing port; 0 is StikJIT's own 49152.
+    private static func configuration(_ rsdPort: UInt16) -> StikJIT.Configuration {
+        StikJIT.Configuration(rsdPort: rsdPort == 0 ? StikJIT.Configuration.default.rsdPort : rsdPort)
+    }
 
     /// The pairing file lives only for the call, in the extension's temporary directory.
     private func withPairingFile<T>(_ data: Data, _ body: (URL) throws -> T) throws -> T {

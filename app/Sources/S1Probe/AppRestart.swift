@@ -164,8 +164,10 @@ final class AppRestart: ObservableObject {
         do { pairing = try BuiltInJit.pairingData() } catch { return "\(error)" }
         guard let bundle = Bundle.main.bundleIdentifier else { return "no bundle identifier" }
         let sink = Sink(start: started)
+        // RemotePairing's port (playport #55): the one found this launch, else a browse.
+        let port = RemotePairingPort.resolve(fresh: false, log: log)
         let rc = pairing.withUnsafeBytes { raw in
-            playport_relaunch(raw.bindMemory(to: UInt8.self).baseAddress, raw.count, host, bundle, { line, ctx in
+            playport_relaunch(raw.bindMemory(to: UInt8.self).baseAddress, raw.count, host, port, bundle, { line, ctx in
                 guard let line, let ctx else { return }
                 Unmanaged<Sink>.fromOpaque(ctx).takeUnretainedValue().say(String(cString: line))
             }, Unmanaged.passUnretained(sink).toOpaque())

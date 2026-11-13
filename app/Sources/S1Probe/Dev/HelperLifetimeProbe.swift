@@ -87,7 +87,8 @@ final class HelperLifetimeProbe: ObservableObject {
             xpcError = error.localizedDescription
             replied.signal()
         }
-        proxy.lifetimeProbe(intervalMs: interval, capS: cap, hold: hold, pairingFile: pairing) { p in
+        proxy.lifetimeProbe(intervalMs: interval, capS: cap, hold: hold, pairingFile: pairing,
+                            rsdPort: RemotePairingPort.current) { p in
             pid = p
             replied.signal()
         }

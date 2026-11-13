@@ -12,10 +12,11 @@
 typedef void (*playport_relaunch_log)(const char *line, void *ctx);
 
 /// The chain StikJIT's JIT session uses to reach the phone, then one request:
-/// the RP pairing file, RemotePairing's tunnel at host:49152 with its RSD
+/// the RP pairing file, RemotePairing's tunnel at host:port (RemotePairingPort.swift;
+/// 49152 before iOS 27, and when port is 0) with its RSD
 /// handshake, the app service, launchapplication for `bundle_id` with
 /// terminateExisting. Returns 0 once the service replied (it does not, when it
 /// replaces this process), else the step that failed; `log` gets one line per
 /// step and the failure's text.
-int playport_relaunch(const uint8_t *pairing, size_t pairing_len, const char *host, const char *bundle_id,
-                      playport_relaunch_log log, void *ctx);
+int playport_relaunch(const uint8_t *pairing, size_t pairing_len, const char *host, uint16_t port,
+                      const char *bundle_id, playport_relaunch_log log, void *ctx);

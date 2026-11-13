@@ -183,7 +183,9 @@ enum BuiltInJit {
         queue.async {
             pendingEnables.withLock { $0 -= 1 }
             done(withHelper(log: log, cancelled: { cancelled.withLock { $0 } }) { helper, reply in
-                helper.enableJIT(targetPID: getpid(), pairingFile: try pairingData()) { error in
+                // The port found by the launch's readiness check, else a browse (RemotePairingPort.swift).
+                let port = RemotePairingPort.resolve(fresh: false, log: log)
+                helper.enableJIT(targetPID: getpid(), pairingFile: try pairingData(), rsdPort: port) { error in
                     reply(error.map(Failure.helper))
                 }
             })
@@ -199,7 +201,8 @@ enum BuiltInJit {
             nonisolated(unsafe) var neverRan = false
             if let failure = withHelper(log: log, pairingFileProvided: pairingFile != nil,
                                         cancelled: { enablePending() || (cancelled?.withLock { $0 } ?? false) }, { helper, reply in
-                helper.prepare(pairingFile: try pairingFile ?? pairingData()) { status, reason, txm in
+                let port = RemotePairingPort.resolve(log: log)
+                helper.prepare(pairingFile: try pairingFile ?? pairingData(), rsdPort: port) { status, reason, txm in
                     result = (status, reason, txm)
                     reply(nil)
                 }

@@ -103,7 +103,8 @@ enum LocalDevVPN {
         var peer = sockaddr_in()
         peer.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         peer.sin_family = sa_family_t(AF_INET)
-        peer.sin_port = in_port_t(49152).bigEndian
+        // RemotePairing's port as last found (RemotePairingPort.swift); never browses here.
+        peer.sin_port = in_port_t(RemotePairingPort.current).bigEndian
         guard inet_pton(AF_INET, AppRestart.host, &peer.sin_addr) == 1 else { return false }
         let connected = withUnsafePointer(to: &peer) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
