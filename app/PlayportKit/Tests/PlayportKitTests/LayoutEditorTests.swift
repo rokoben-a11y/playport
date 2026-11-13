@@ -376,7 +376,7 @@ final class LayoutEditorTests: XCTestCase {
         let never = ControlsState.resolve(game: nil, defaults: ControlsDefaults(show: .never, dpad: .on), controllerConnected: false)
         var fresh = LayoutEditor(game: nil, state: never, width: 800, height: 400)
         XCTAssertEqual(fresh.preset, .gamepad)
-        XCTAssertEqual(fresh.layout, .gamepad(dpad: .on))
+        XCTAssertEqual(fresh.layout, .gamepad(dpad: .on, rightStick: ControlsDefaults.defaultRightStick))
         XCTAssertFalse(fresh.isEdited)
         XCTAssertFalse(fresh.changed)
         XCTAssertEqual(fresh.saved(into: nil), GameControls())

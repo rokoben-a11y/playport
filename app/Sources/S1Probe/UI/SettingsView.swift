@@ -396,13 +396,18 @@ private struct ControlsSettings: View {
     @AppStorage(ControlsDefaults.showKey) private var show = ControlsShow.automatic.rawValue
     @AppStorage(ControlsDefaults.opacityKey) private var opacity = ControlsOpacity.defaultValue
     @AppStorage(ControlsDefaults.hapticsKey) private var haptics = true
-    @AppStorage(ControlsDefaults.dpadKey) private var dpad = OnScreenDpad.off.rawValue
-    @AppStorage(ControlsDefaults.rightStickKey) private var rightStick = OnScreenRightStick.off.rawValue
+    @AppStorage(ControlsDefaults.dpadKey) private var dpad = ControlsDefaults.defaultDpad.rawValue
+    @AppStorage(ControlsDefaults.rightStickKey) private var rightStick = ControlsDefaults.defaultRightStick.rawValue
+    /// The on-screen controller in every game (iPhone Duo build): on by default.
+    @AppStorage(ControlsDefaults.onScreenKey) private var onScreen = true
     /// A layout's name, or "" for Suggested for the game.
     @AppStorage(ControlsDefaults.startingLayoutKey) private var startingLayout = ""
 
     var body: some View {
         Color.clear.frame(height: 42)
+        SettingsSwitchRow(id: "controlsOnScreen", title: "On-screen controller",
+                          subtitle: onScreen ? "Xbox layout; at the bottom of the open inner screen" : "Hidden in every game",
+                          on: $onScreen)
         let shows = ControlsShow.allCases
         let current = ControlsShow(rawValue: show) ?? .automatic
         PadValueRow(id: "set:controlsShow", title: "On-screen controls", subtitle: Self.showSubtitle(current),
@@ -421,11 +426,13 @@ private struct ControlsSettings: View {
         let dpads = OnScreenDpad.allCases
         PadValueRow(id: "set:controlsDpad", title: "D-pad", subtitle: "Above the left stick",
                     values: dpads.map(\.title),
-                    index: dpads.firstIndex(of: OnScreenDpad(rawValue: dpad) ?? .off) ?? 0) { dpad = dpads[$0].rawValue }
+                    index: dpads.firstIndex(of: OnScreenDpad(rawValue: dpad) ?? ControlsDefaults.defaultDpad) ?? 0) {
+            dpad = dpads[$0].rawValue
+        }
         let sticks = OnScreenRightStick.allCases
         PadValueRow(id: "set:controlsRightStick", title: "Right stick", subtitle: "Where it goes beside A/B/X/Y",
                     values: sticks.map(\.title),
-                    index: sticks.firstIndex(of: OnScreenRightStick(rawValue: rightStick) ?? .off) ?? 0) {
+                    index: sticks.firstIndex(of: OnScreenRightStick(rawValue: rightStick) ?? ControlsDefaults.defaultRightStick) ?? 0) {
             rightStick = sticks[$0].rawValue
         }
         SettingsSwitchRow(id: "controlsHaptics", title: "A tap you can feel", subtitle: "Haptics when a control is pressed",

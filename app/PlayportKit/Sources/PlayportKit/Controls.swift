@@ -30,6 +30,13 @@
 // - The controller map (ControllerMap.swift): the game's own in the same
 //   record, else Settings' (`controls.controllerMap`); `controller` by default.
 //   Its Look speed the same way (`lookSpeed`, `controls.lookSpeed`; 1×).
+// - iPhone Duo build: Settings › Controls › On-screen controller (`controls.onScreen`,
+//   on by default) shows or hides the on-screen controls in every game; off, nothing
+//   is drawn whatever the layout, and the controls' pad stays player 1 at rest while
+//   no controller is connected. The Gamepad layout is the whole Xbox controller by
+//   default: A/B/X/Y, LB/RB, LT/RT, View/Menu, both sticks (the right one Below A/B/X/Y)
+//   and the d-pad. On the open inner display it docks in the bottom band
+//   (ControlLayout.swift, ControlBand). LT and RT are pressed fully or not at all.
 
 import Foundation
 
@@ -148,23 +155,32 @@ public struct ControlsDefaults: Equatable, Sendable {
     public static let lookSpeedKey = LookSpeed.defaultsKey
     /// A layout's name; missing, empty or not one of `OnScreenLayout.startingChoices` is Suggested.
     public static let startingLayoutKey = "controls.startingLayout"
+    /// The on-screen controller in every game: shown (true, the default) or hidden.
+    public static let onScreenKey = "controls.onScreen"
+    /// The Gamepad layout's d-pad and right stick by default: the whole Xbox controller.
+    public static let defaultDpad = OnScreenDpad.on
+    public static let defaultRightStick = OnScreenRightStick.below
 
     public var show = ControlsShow.automatic
     public var opacity = ControlsOpacity.defaultValue
     public var haptics = true
-    public var dpad = OnScreenDpad.off
-    public var rightStick = OnScreenRightStick.off
+    public var dpad = ControlsDefaults.defaultDpad
+    public var rightStick = ControlsDefaults.defaultRightStick
     public var controllerMap = ControllerMap()
     public var lookSpeed = LookSpeed.defaultValue
     /// Every game's layout unless it has its own or a compatibility default; nil: the game's
     /// suggestion (its compatibility default, else Gamepad).
     public var startingLayout: OnScreenLayout?
+    /// Settings › Controls › On-screen controller: false hides the controls in every game.
+    public var onScreen = true
 
     public init(show: ControlsShow = .automatic, opacity: Double = ControlsOpacity.defaultValue, haptics: Bool = true,
-                dpad: OnScreenDpad = .off, rightStick: OnScreenRightStick = .off, controllerMap: ControllerMap = ControllerMap(),
-                lookSpeed: Double = LookSpeed.defaultValue, startingLayout: OnScreenLayout? = nil) {
+                dpad: OnScreenDpad = ControlsDefaults.defaultDpad, rightStick: OnScreenRightStick = ControlsDefaults.defaultRightStick,
+                controllerMap: ControllerMap = ControllerMap(), lookSpeed: Double = LookSpeed.defaultValue,
+                startingLayout: OnScreenLayout? = nil, onScreen: Bool = true) {
         self.show = show; self.opacity = opacity; self.haptics = haptics; self.dpad = dpad; self.rightStick = rightStick
         self.controllerMap = controllerMap; self.lookSpeed = lookSpeed; self.startingLayout = startingLayout
+        self.onScreen = onScreen
     }
 
     /// What `defaults` holds, each key missing (or not understood) read as its default.
@@ -173,13 +189,14 @@ public struct ControlsDefaults: Equatable, Sendable {
         let o = defaults.object(forKey: Self.opacityKey) as? Double ?? ControlsOpacity.defaultValue
         opacity = (0.1...1).contains(o) ? o : ControlsOpacity.defaultValue
         haptics = defaults.object(forKey: Self.hapticsKey) as? Bool ?? true
-        dpad = defaults.string(forKey: Self.dpadKey).flatMap(OnScreenDpad.init(rawValue:)) ?? .off
-        rightStick = defaults.string(forKey: Self.rightStickKey).flatMap(OnScreenRightStick.init(rawValue:)) ?? .off
+        dpad = defaults.string(forKey: Self.dpadKey).flatMap(OnScreenDpad.init(rawValue:)) ?? Self.defaultDpad
+        rightStick = defaults.string(forKey: Self.rightStickKey).flatMap(OnScreenRightStick.init(rawValue:)) ?? Self.defaultRightStick
         controllerMap = ControllerMap(defaults)
         // A number, or a String that reads as one (the driver's `set:controls.lookSpeed=1.5`).
         lookSpeed = LookSpeed.kept(GyroSettings.number(defaults, Self.lookSpeedKey)) ?? LookSpeed.defaultValue
         startingLayout = defaults.string(forKey: Self.startingLayoutKey).flatMap(OnScreenLayout.init(rawValue:))
             .flatMap { OnScreenLayout.startingChoices.contains($0) ? $0 : nil }
+        onScreen = defaults.object(forKey: Self.onScreenKey) as? Bool ?? true
     }
 }
 
@@ -305,10 +322,11 @@ public struct ControlsState: Equatable, Sendable {
 
     /// The game's own layout, else Off under Never, else the game's compatibility default (`compat`,
     /// CompatDefaults.Entry.controls), else Settings' Starting layout, else Gamepad (decision 0074).
+    /// With Settings' On-screen controller off (`defaults.onScreen`) nothing is shown.
     public static func resolve(game: GameControls?, defaults: ControlsDefaults, controllerConnected: Bool,
                                compat: OnScreenLayout? = nil) -> ControlsState {
         let layout = game?.layout ?? (defaults.show == .never ? .off : compat ?? defaults.startingLayout ?? .gamepad)
-        let shown = layout != .off && (defaults.show == .always || !controllerConnected)
+        let shown = defaults.onScreen && layout != .off && (defaults.show == .always || !controllerConnected)
         return ControlsState(layout: layout, visible: shown, opacity: game?.opacity ?? defaults.opacity,
                              dpad: game?.dpad ?? defaults.dpad, rightStick: game?.rightStick ?? defaults.rightStick,
                              padConnected: shown || !controllerConnected, edited: game?.layouts[layout])

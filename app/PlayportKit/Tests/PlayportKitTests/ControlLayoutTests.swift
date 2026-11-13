@@ -315,7 +315,7 @@ final class ControlsSettingsTests: XCTestCase {
     func testAutomaticHidesTheControlsWhileAControllerIsConnected() {
         let d = ControlsDefaults()
         XCTAssertEqual(ControlsState.resolve(game: nil, defaults: d, controllerConnected: false),
-                       ControlsState(layout: .gamepad, visible: true, opacity: 0.6))
+                       ControlsState(layout: .gamepad, visible: true, opacity: 0.6, dpad: .on, rightStick: .below))
         let hidden = ControlsState.resolve(game: nil, defaults: d, controllerConnected: true)
         XCTAssertFalse(hidden.visible)
         XCTAssertNil(hidden.drawnLayout)   // Home opens the menu then
@@ -328,7 +328,7 @@ final class ControlsSettingsTests: XCTestCase {
         XCTAssertFalse(ControlsState.resolve(game: nil, defaults: never, controllerConnected: false).visible)
         let mine = GameControls(layout: .gamepad, opacity: 0.9)
         XCTAssertEqual(ControlsState.resolve(game: mine, defaults: never, controllerConnected: false),
-                       ControlsState(layout: .gamepad, visible: true, opacity: 0.9))
+                       ControlsState(layout: .gamepad, visible: true, opacity: 0.9, dpad: .on, rightStick: .below))
         let off = ControlsState.resolve(game: GameControls(layout: .off), defaults: ControlsDefaults(show: .always),
                                         controllerConnected: false)
         XCTAssertFalse(off.visible)
@@ -338,7 +338,7 @@ final class ControlsSettingsTests: XCTestCase {
         let pad = ControlsState.resolve(game: GameControls(layout: .off), defaults: ControlsDefaults(), controllerConnected: true)
         XCTAssertNil(pad.drawnLayout)
         XCTAssertEqual(ControlsState.resolve(game: nil, defaults: ControlsDefaults(), controllerConnected: false).drawnLayout,
-                       .gamepad())
+                       .gamepad(dpad: .on, rightStick: .below))
     }
 
     /// A compatibility default's layout (decision 0074) is the game's starting layout over Settings'
@@ -377,12 +377,15 @@ final class ControlsSettingsTests: XCTestCase {
         XCTAssertFalse(ControlsState.resolve(game: off, defaults: ControlsDefaults(show: .always), controllerConnected: true).padConnected)
     }
 
-    /// The d-pad and the right stick: the game's own, else Settings › Controls' (both Off by default).
+    /// The d-pad and the right stick: the game's own, else Settings › Controls' (iPhone Duo build: the
+    /// whole Xbox controller by default, the d-pad On and the right stick Below A/B/X/Y).
     func testTheDpadAndRightStickFollowTheGameThenTheDefaults() {
         let plain = ControlsState.resolve(game: nil, defaults: ControlsDefaults(), controllerConnected: false)
-        XCTAssertEqual(plain.dpad, .off)
-        XCTAssertEqual(plain.rightStick, .off)
-        XCTAssertEqual(plain.drawnLayout, .gamepad(dpad: .off, rightStick: .off))
+        XCTAssertEqual(plain.dpad, .on)
+        XCTAssertEqual(plain.rightStick, .below)
+        XCTAssertEqual(plain.drawnLayout, .gamepad(dpad: .on, rightStick: .below))
+        let ids = Set(plain.drawnLayout?.controls.map(\.id) ?? [])
+        XCTAssertEqual(ids, ["view", "menu", "lt", "lb", "rt", "rb", "dpad", "leftStick", "rightStick", "y", "x", "b", "a"])
         let defaults = ControlsDefaults(dpad: .on, rightStick: .above)
         let withDefaults = ControlsState.resolve(game: GameControls(layout: .gamepad), defaults: defaults, controllerConnected: false)
         XCTAssertEqual(withDefaults.drawnLayout, .gamepad(dpad: .on, rightStick: .above))
@@ -393,6 +396,20 @@ final class ControlsSettingsTests: XCTestCase {
         XCTAssertFalse(GameControls(dpad: .off).isEmpty)
         XCTAssertEqual(OnScreenRightStick.allCases.map(\.title), ["Off", "Below A/B/X/Y", "Above A/B/X/Y"])
         XCTAssertEqual(OnScreenDpad.allCases.map(\.title), ["Off", "On"])
+    }
+
+    /// Settings › Controls › On-screen controller off hides the controls in every game, a game's own
+    /// layout and Always too; the controls' pad stays player 1 while no controller is connected.
+    func testTheOnScreenControllerSwitchHidesTheControlsEverywhere() {
+        let off = ControlsDefaults(show: .always, onScreen: false)
+        for game in [nil, GameControls(layout: .gamepad), GameControls(layout: .keyboardMouse)] {
+            let s = ControlsState.resolve(game: game, defaults: off, controllerConnected: false)
+            XCTAssertFalse(s.visible)
+            XCTAssertNil(s.drawnLayout)
+            XCTAssertTrue(s.padConnected)
+        }
+        XCTAssertFalse(ControlsState.resolve(game: nil, defaults: off, controllerConnected: true).padConnected)
+        XCTAssertTrue(ControlsState.resolve(game: nil, defaults: ControlsDefaults(), controllerConnected: false).visible)
     }
 
     /// Settings › Controls › Starting layout: every game's first choice unless it has its own (or a
@@ -447,7 +464,12 @@ final class ControlsSettingsTests: XCTestCase {
         d.set("below", forKey: ControlsDefaults.rightStickKey)
         XCTAssertEqual(ControlsDefaults(d), ControlsDefaults(show: .automatic, opacity: 0.6, haptics: false, dpad: .on, rightStick: .below))
         d.set("sideways", forKey: ControlsDefaults.rightStickKey)
-        XCTAssertEqual(ControlsDefaults(d).rightStick, .off)
+        XCTAssertEqual(ControlsDefaults(d).rightStick, .below)
+        // Settings › Controls › On-screen controller: on unless turned off.
+        XCTAssertTrue(ControlsDefaults(d).onScreen)
+        d.set(false, forKey: ControlsDefaults.onScreenKey)
+        XCTAssertFalse(ControlsDefaults(d).onScreen)
+        d.removeObject(forKey: ControlsDefaults.onScreenKey)
         // The starting layout: a layout's name (the driver's set:controls.startingLayout=keyboardMouse); anything
         // else, Off and empty (the Settings row's Suggested) too, is Suggested.
         XCTAssertNil(ControlsDefaults(d).startingLayout)
