@@ -30,6 +30,7 @@
 // - Developer, dev builds only (Dev/DeveloperSettings.swift, decision 0009).
 
 import Combine
+import HostIOKit
 import PlayportKit
 import SteamClientKit
 import SwiftUI

@@ -68,7 +68,10 @@ final class LaunchSettingsStore: ObservableObject {
     }
 }
 
-/// How the pickers name a screen spec and a limit on this phone.
+/// How the pickers name a screen spec and a limit on this phone. Main actor:
+/// `size` reads TitleScreen.panelPixels (the key window), and every caller is
+/// a SwiftUI view.
+@MainActor
 enum LaunchSettingsText {
     /// The resolutions this panel can show in a shape, largest first.
     static func screens(_ aspect: ScreenAspect = .phone) -> [String] {
