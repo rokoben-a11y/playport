@@ -5,9 +5,10 @@
 # The Darwin SDK is a darwin.xtoolsdk directory already built by
 # build/ci/darwin-sdk-export.sh (xtool 1.20.1 `sdk build` of Xcode.app).
 # This script installs it with the official xtool 1.20.1 Linux AppImage.
-# `sdk install` of a .xtoolsdk copies the bundle and adds this machine's
-# clang resource directory (PackLib/DarwinSDK.swift addHostClangResourceDir).
-# That step has to run here, on the clang that will compile, not on the Mac.
+# `sdk install` of a .xtoolsdk copies the bundle and adds the first PATH
+# clang's resource headers (PackLib/DarwinSDK.swift addHostClangResourceDir).
+# Swift's frontend compiles against them, so they are then replaced with
+# Swift 6.4.1's own clang 21 headers (below), not LLVM 22's.
 #
 # The patched xtool the app link uses is still build/toolchain/xtool.sh,
 # which `pp build` runs itself. The AppImage is only the SDK installer and
@@ -128,8 +129,8 @@ fi
 bash "$ROOT/build/toolchain/llvm-mingw-arm64ec.sh" "$mingw"
 export LLVM_MINGW=$mingw
 
-# Install the prebuilt SDK with xtool 1.20.1. clang on PATH is LLVM 22, so the
-# resource directory copied into the SDK is that clang's.
+# Install the prebuilt SDK with xtool 1.20.1. clang on PATH is LLVM 22, so xtool
+# copies LLVM 22's resource headers into the SDK; they are swapped for Swift's below.
 test -d "$SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk"
 test -d "$SDK/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk"
 test -f "$SDK/toolset.json"
@@ -152,6 +153,32 @@ if [ ! -d "$installed/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhon
     exit 1
 fi
 export DARWIN_SDK=$installed
+
+# Swift 6.4.1's frontend (clang 21.0.0, swiftlang) builds the SDK's Clang modules with the
+# SDK's usr/lib/swift/clang (-> ../clang/21) as its resource dir. xtool 1.20.1 `sdk install`
+# filled that dir from the first `clang` on PATH (PackLib/DarwinSDK.swift
+# addHostClangResourceDir), which is LLVM 22 here. LLVM 22's arm_neon.h calls NEON builtins
+# clang 21 does not have, so `xtool dev build` failed on the _Builtin_intrinsics module
+# (run 43536271575, 12 errors). Put Swift's own clang headers there, as build/pipeline does
+# for a /usr/lib/swift Swift. LLVM 22 stays first on PATH for everything else.
+sdk_clang=$DARWIN_SDK/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/clang
+swift_clang=$(readlink -f "$swift_root/usr/lib/swift/clang")
+if [ "$(basename "$(readlink -f "$sdk_clang")")" != "$(basename "$swift_clang")" ]; then
+    echo "SDK clang dir $(readlink -f "$sdk_clang") is not Swift's clang version ($swift_clang)" >&2
+    exit 1
+fi
+rm -rf "$sdk_clang/include"
+cp -a "$swift_clang/include" "$sdk_clang/include"
+# Fail in seconds, not at the app stage hours later: Swift 6.4.1 must build the SDK's builtin
+# Clang modules for the app's target from this SDK, exactly as `xtool dev build` will.
+pcm_dir=$(mktemp -d)
+"$swift_root/usr/bin/swift-frontend" -emit-pcm -module-name _Builtin_intrinsics \
+    -o "$pcm_dir/_Builtin_intrinsics.pcm" "$sdk_clang/include/module.modulemap" \
+    -sdk "$DARWIN_SDK/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk" \
+    -target arm64-apple-ios26.0 \
+    -resource-dir "$DARWIN_SDK/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift"
+rm -rf "$pcm_dir"
+echo "SDK clang headers = Swift $(basename "$swift_clang"); _Builtin_intrinsics builds"
 
 # xtool-core's C modules (libimobiledevice, plist, usbmuxd, glue, openssl)
 # need the headers and libraries xtool 1.20.1's Dockerfile builds. pp build
